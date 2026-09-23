@@ -1,0 +1,1590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>349 Twin — Instrument Pods</title>
+<style>
+  :root {
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    color-scheme: dark;
+  }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  *, *::before, *::after { box-sizing: inherit; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    -webkit-tap-highlight-color: transparent;
+  }
+  canvas { display: block; outline: none; touch-action: none; }
+
+  .tweak {
+    position: fixed; top: 0; right: 0; height: 100%; width: min(340px, 92vw);
+    background: rgba(12,12,13,0.94); backdrop-filter: blur(6px);
+    border-left: 1px solid rgba(255,255,255,0.08);
+    color: #D8D8D5; font: 13px ui-sans-serif, 'Helvetica Neue', Arial, sans-serif;
+    padding: calc(18px + env(safe-area-inset-top, 0px)) 18px calc(18px + env(safe-area-inset-bottom, 0px));
+    overflow-y: auto;
+    transform: translateX(100%); transition: transform 0.22s ease;
+    z-index: 5;
+  }
+  @media (prefers-reduced-motion: reduce) { .tweak { transition: none; } }
+  .tweak.open { transform: translateX(0); }
+  .tweak h2 { font-size: 15px; margin: 0 0 12px; color: #F2F0E9; font-weight: 600; }
+  .tweak h3 { font-size: 11px; margin: 18px 0 8px; color: #9A9A96; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+  .tweak label { display: block; margin: 10px 0; }
+  .tweak label.check { display: flex; gap: 8px; align-items: center; }
+  .tweak .row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 3px; }
+  .tweak .row span:last-child { color: #F2F0E9; font-variant-numeric: tabular-nums; }
+  .tweak input[type="range"] { width: 100%; accent-color: #C0392B; }
+  .tweak input[type="checkbox"] { accent-color: #C0392B; }
+  .tweak select {
+    width: 100%; background: #1B1C1D; color: #D8D8D5; border: 1px solid #3A3A3A;
+    border-radius: 4px; padding: 5px 6px; font: inherit;
+  }
+  .tweak .presets, .tweak .mute-row { display: flex; gap: 6px; margin-bottom: 4px; }
+  .tweak .mute-row { justify-content: space-between; align-items: center; margin-top: 14px; }
+  .tweak button {
+    background: #1B1C1D; color: #D8D8D5; border: 1px solid #3A3A3A; border-radius: 4px;
+    padding: 6px 10px; font: inherit; cursor: pointer; flex: 1;
+  }
+  .tweak button:hover { background: #26272A; }
+  .tweak button.active { border-color: #C0392B; color: #F2F0E9; }
+  .tweak :focus-visible { outline: 2px solid #C0392B; outline-offset: 1px; }
+  .tweak .derived div { display: flex; justify-content: space-between; padding: 2px 0; color: #B8B8B4; }
+  .tweak .derived div span:last-child { color: #F2F0E9; font-variant-numeric: tabular-nums; }
+  .tweak .gears { font-variant-numeric: tabular-nums; color: #B8B8B4; white-space: pre-line; }
+  .tweak .note { color: #8A8A86; font-size: 11px; line-height: 1.45; margin-top: 4px; }
+  .tweak canvas#curve { width: 100%; height: 110px; margin-top: 10px; background: #0E0F10; border-radius: 4px; }
+  .hint { position: fixed; left: 12px; bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    color: rgba(216,216,213,0.45); font: 11px ui-sans-serif, Arial, sans-serif; letter-spacing: 0.02em; }
+</style>
+</head>
+<body>
+<canvas id="pods" tabindex="0" aria-label="Tachometer and speedometer"></canvas>
+
+<div class="hint">W throttle &nbsp;·&nbsp; Q part throttle &nbsp;·&nbsp; Shift clutch &nbsp;·&nbsp; N/M gears &nbsp;·&nbsp; E start &nbsp;·&nbsp; T tweak &nbsp;·&nbsp; A mute</div>
+
+<div class="tweak" id="tweak">
+  <h2>Engine Tuner</h2>
+  <div class="presets">
+    <button data-preset="twin">Twin</button>
+    <button data-preset="triple">Triple</button>
+    <button data-preset="four">Four</button>
+  </div>
+
+  <h3>Sound</h3>
+  <label>Exhaust
+    <select id="in-exhaust">
+      <option value="stock">Stock silencer</option>
+      <option value="slipon">Slip-on (packed, no cat)</option>
+      <option value="open">Open header</option>
+    </select>
+  </label>
+  <label>Listening position
+    <select id="in-listener">
+      <option value="rider">On the bike (rider)</option>
+      <option value="trackside">Trackside</option>
+      <option value="dyno">Behind the exhaust (dyno)</option>
+    </select>
+  </label>
+  <label class="check"><input type="checkbox" id="in-pops" checked> Overrun burble</label>
+  <label>
+    <div class="row"><span>Volume</span><span id="out-vol"></span></div>
+    <input type="range" id="in-vol" min="0.2" max="4" step="0.05">
+  </label>
+  <div class="mute-row">
+    <span>Engine audio</span>
+    <button id="btn-mute">Mute</button>
+  </div>
+
+  <h3>Rider</h3>
+  <label>
+    <div class="row"><span>Clutch release time</span><span id="out-clutch"></span></div>
+    <input type="range" id="in-clutch" min="0.15" max="1.5" step="0.05">
+  </label>
+  <div class="note">Hold Shift to pull the clutch; releasing lets it out over this time. Dump it without revs and the engine stalls. Press E (in neutral or with the clutch pulled) to restart.</div>
+
+  <h3>Inputs</h3>
+  <label>Cylinders
+    <select id="in-cyl">
+      <option value="2">2</option>
+      <option value="3">3</option>
+      <option value="4">4</option>
+    </select>
+  </label>
+  <label>Crank angle
+    <select id="in-crank"></select>
+  </label>
+  <label>
+    <div class="row"><span>Displacement</span><span id="out-disp"></span></div>
+    <input type="range" id="in-disp" min="150" max="1200" step="1">
+  </label>
+  <label>
+    <div class="row"><span>Bore / stroke ratio</span><span id="out-bsr"></span></div>
+    <input type="range" id="in-bsr" min="1.00" max="1.80" step="0.01">
+  </label>
+  <label>
+    <div class="row"><span>Peak IMEP</span><span id="out-imep"></span></div>
+    <input type="range" id="in-imep" min="10.0" max="14.0" step="0.1">
+  </label>
+  <label>
+    <div class="row"><span>Max piston speed</span><span id="out-mps-in"></span></div>
+    <input type="range" id="in-mpsin" min="16.0" max="21.0" step="0.1">
+  </label>
+
+  <h3>Derived</h3>
+  <div class="derived">
+    <div><span>Bore x stroke</span><span id="out-bore"></span></div>
+    <div><span>Redline</span><span id="out-redline"></span></div>
+    <div><span>Limiter</span><span id="out-limiter"></span></div>
+    <div><span>Idle</span><span id="out-idle"></span></div>
+    <div><span>Peak torque</span><span id="out-peakT"></span></div>
+    <div><span>Peak power</span><span id="out-peakP"></span></div>
+    <div><span>MPS @ redline</span><span id="out-mpsredline"></span></div>
+    <div><span>Crank inertia</span><span id="out-inertia"></span></div>
+    <div><span>Terminal velocity</span><span id="out-vterm"></span></div>
+    <div><span>Audio engine</span><span id="out-audio">not started</span></div>
+  </div>
+  <div class="gears" id="out-gears"></div>
+  <canvas id="curve" width="600" height="220"></canvas>
+</div>
+<script>
+"use strict";
+/* =========================================================================
+   349cc PARALLEL TWIN — TWIN INSTRUMENT PODS
+   Canvas 2D. Fixed-timestep physics (1/240 s) decoupled from rendering.
+   Controls: W throttle | Q part throttle | Shift clutch | N up | M down | E start | R reset
+   ========================================================================= */
+
+/* ------------------------------------------------------------------ CONFIG */
+const CONFIG = {
+
+  layout: { tachoDia: 300, speedoDia: 300, gap: 24, pad: 46, bezel: 10 },
+
+  color: {
+    page:      "#000000",
+    face:      "#F2F0E9",
+    ink:       "#141517",
+    needle:    "#C0392B",
+    redline:   "#C0392B",
+    lcdBack:   "#2A2F2A",
+    lcdOn:     "#C8D4C0",
+    lcdOff:    "rgba(200,212,192,0.07)",
+    ledOff:    "#2B2B2B",
+    ledAmber:  "#FFB020",
+    ledRed:    "#FF2A18"
+  },
+
+  sweep: { startDeg: 135, spanDeg: 270 },
+
+  speedo: { maxKmh: 220, majorStep: 20, minorStep: 10 },
+  tacho: {
+    maxRpm: 13000, redlineFrom: 12000,
+    mapRpm: [0, 13000], mapF: [0, 1],
+    labelAt: [0], majorStep: 1000, minorStep: 500, minorFrom: 8000
+  },
+
+  engine: {
+    idleRpm: 1000, idleBandRpm: 1200,
+    idleKp: 0.80, idleKi: 2.50, idleIClamp: 0.30,
+    idleThrMax: 0.35,          // idle valve authority: can't hold idle against a dumped clutch
+    stallRpm: 380,             // below this, combustion can't sustain itself
+    pmepClosed: 0.80,          // bar, pumping loss at closed throttle (manifold vacuum)
+    starterNm: 14,             // starter torque at the crank
+    limiterCutRpm: 12800, limiterRestoreRpm: 12400,
+    throttleRate: 8.0,
+    inertia: 0.016,
+    clutchCapFactor: 2.2,      // clutch torque capacity / peak engine torque
+    clutchInSec: 0.07,         // lever pull time
+    clutchOutSec: 0.55         // lever release time (tweakable)
+  },
+
+  drive: {
+    gears: [2.603, 1.834, 1.428, 1.169, 0.984, 0.849],
+    eff: 0.90,
+    rollCirc: 1.922,           // m, 150/60-17
+    wheelR: 0.3059,            // m
+    wheelMassEq: 12,           // kg, both wheels' rotational inertia / r²
+    spread: 2.9,               // 1st / 6th overall ratio
+    upCutSec: 0.060,           // quickshifter ignition cut
+    downCutSec: 0.080          // auto-blip downshift window
+  },
+
+  // CdA 0.45 m²: naked bike + upright rider (0.32 was a tucked supersport)
+  vehicle: { mass: 243, CdA: 0.45, rho: 1.225, crr: 0.018, g: 9.81 },
+
+  inputs: {
+    cylinders: 2, displacementCc: 349, boreStrokeRatio: 1.55,
+    peakImepBar: 12.2, maxPistonSpeed: 19.0, crankAngleDeg: 180
+  },
+
+  sound: { exhaust: "stock", listener: "rider", pops: true, volume: 1.6 },
+
+  needle: { tach: { wn: 38, zeta: 0.72 }, speed: { wn: 16, zeta: 0.95 } },
+
+  loop: { fixedDt: 1 / 240, maxAccum: 0.25 },
+
+  leds: { count: 5, amberFrom: 11000, redFrom: 11800, flashSec: 0.30 }
+};
+
+const LAYOUTS = {
+  2: [
+    { angleDeg: 180, intervals: [180, 540], label: "180°  (thin, screaming)" },
+    { angleDeg: 270, intervals: [270, 450], label: "270°  (offbeat, V-twin-like)" },
+    { angleDeg: 360, intervals: [360, 360], label: "360°  (even, British twin)" }
+  ],
+  3: [ { angleDeg: 120, intervals: [240, 240, 240], label: "120°  (even, triple howl)" } ],
+  4: [ { angleDeg: 180, intervals: [180, 180, 180, 180], label: "180°" } ]
+};
+
+const PRESETS = {
+  twin:   { cylinders: 2, displacementCc: 349, boreStrokeRatio: 1.55, peakImepBar: 12.2, maxPistonSpeed: 19.0, crankAngleDeg: 180 },
+  triple: { cylinders: 3, displacementCc: 349, boreStrokeRatio: 1.55, peakImepBar: 12.2, maxPistonSpeed: 19.0, crankAngleDeg: 120 },
+  four:   { cylinders: 4, displacementCc: 349, boreStrokeRatio: 1.55, peakImepBar: 12.2, maxPistonSpeed: 19.0, crankAngleDeg: 180 }
+};
+
+const BREATH_N = [0.00, 0.17, 0.33, 0.50, 0.67, 0.75, 0.83, 0.92, 1.00, 1.08];
+const BREATH_SHAPE = [0.50, 0.57, 0.68, 0.80, 0.90, 0.95, 1.00, 0.98, 0.93, 0.80];
+const TACHO_F = [0.00, 0.06, 0.13, 0.22, 0.38, 0.50, 0.64, 0.78, 0.90, 1.00];
+
+/* ------------------------------------------------------------------ UTIL */
+const clamp = (v, lo, hi) => v < lo ? lo : v > hi ? hi : v;
+const TAU = Math.PI * 2;
+const DEG = Math.PI / 180;
+const smoothstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+
+function lerpTable(xs, ys, x) {
+  if (x <= xs[0]) return ys[0];
+  const n = xs.length;
+  if (x >= xs[n - 1]) return ys[n - 1];
+  let i = 1;
+  while (i < n && xs[i] < x) i++;
+  const t = (x - xs[i - 1]) / (xs[i] - xs[i - 1]);
+  return ys[i - 1] + t * (ys[i] - ys[i - 1]);
+}
+
+const rpmToFrac = rpm => clamp(lerpTable(CONFIG.tacho.mapRpm, CONFIG.tacho.mapF, rpm), 0, 1);
+const kmhToFrac = kmh => clamp(kmh / CONFIG.speedo.maxKmh, 0, 1);
+const fracToAngle = f => (CONFIG.sweep.startDeg + f * CONFIG.sweep.spanDeg) * DEG;
+
+/* ------------------------------------------------------------- ENGINE MAPS */
+const MODEL = {
+  cylinders: 2, boreMm: 70, strokeMm: 45, strokeM: 0.045,
+  vdM3: 349e-6, peakImepBar: 12.2, redline: 12500, limiter: 13300,
+  mass: 243, peakTorqueNm: 30
+};
+const MEP_TO_NM = () => 1e5 * MODEL.vdM3 / (4 * Math.PI);        // 4-stroke: one power stroke per 2 revs
+
+function FMEP(rpm) {
+  const mps = 2 * MODEL.strokeM * Math.abs(rpm) / 60;
+  return 0.60 + 0.055 * mps + 0.12 * (MODEL.cylinders - 2);
+}
+function IMEP(rpm) { return MODEL.peakImepBar * lerpTable(BREATH_N, BREATH_SHAPE, rpm / MODEL.redline); }
+/** WOT brake torque (for the curve/peak scan). */
+const T_wot = rpm => Math.max(0, IMEP(rpm) - FMEP(rpm)) * MEP_TO_NM();
+/** Net crank torque. load 0..1 = throttle (trapped charge). Pumping loss grows as the throttle closes. */
+function engineTorque(rpm, load, firing) {
+  const ind = firing ? IMEP(rpm) * load : 0;
+  const loss = FMEP(rpm) + CONFIG.engine.pmepClosed * (1 - load);
+  return (ind - loss) * MEP_TO_NM();
+}
+
+const overallRatio = gear => CONFIG.drive.gears[gear - 1];
+const rpmFromSpeed = (vMps, gear) => (vMps / CONFIG.drive.rollCirc) * 60 * overallRatio(gear);
+
+/* ------------------------------------------------------- ENGINE MODEL BUILD */
+function niceStep(target, steps) {
+  let best = steps[0];
+  for (const s of steps) if (Math.abs(s - target) < Math.abs(best - target)) best = s;
+  return best;
+}
+
+function buildEngineModel(inp) {
+  const vPercylCc = inp.displacementCc / inp.cylinders;
+  const boreMm = Math.cbrt(vPercylCc * 1000 * 4 * inp.boreStrokeRatio / Math.PI);
+  const strokeMm = boreMm / inp.boreStrokeRatio;
+  const strokeM = strokeMm / 1000;
+
+  const redline = Math.floor((inp.maxPistonSpeed * 30 / strokeM) / 500) * 500;
+  const limiter = redline + 800;
+  const dialMax = Math.ceil(limiter / 1000) * 1000;
+  const vdM3 = inp.displacementCc * 1e-6;
+
+  MODEL.cylinders = inp.cylinders;
+  MODEL.boreMm = boreMm; MODEL.strokeMm = strokeMm; MODEL.strokeM = strokeM;
+  MODEL.vdM3 = vdM3; MODEL.peakImepBar = inp.peakImepBar;
+  MODEL.redline = redline; MODEL.limiter = limiter;
+  MODEL.mass = 243 + 0.045 * (inp.displacementCc - 349);
+
+  let peakTorqueNm = 0, peakTorqueRpm = 0, peakPowerKw = 0, peakPowerRpm = 0;
+  for (let rpm = 1000; rpm <= limiter; rpm += 10) {
+    const t = T_wot(rpm);
+    if (t > peakTorqueNm) { peakTorqueNm = t; peakTorqueRpm = rpm; }
+    const pKw = t * TAU * rpm / 60 / 1000;
+    if (pKw > peakPowerKw) { peakPowerKw = pKw; peakPowerRpm = rpm; }
+  }
+  MODEL.peakTorqueNm = peakTorqueNm;
+
+  const inertia = 0.008 + 0.006 * inp.cylinders * Math.pow(vPercylCc / 174.3, 1.4);
+  const idleRpm = Math.round((550 + 0.035 * redline) / 50) * 50;
+  const mpsAtRedline = 2 * strokeM * redline / 60;
+
+  return {
+    boreMm, strokeMm, strokeM, redline, limiter, dialMax, vdM3,
+    peakTorqueNm, peakTorqueRpm, peakPowerKw, peakPowerRpm,
+    inertia, idleRpm, mpsAtRedline
+  };
+}
+
+/** Terminal velocity (bisection), then a 6-speed geometric ladder whose TOP gear
+    puts peak-power rpm at terminal velocity (the power-matched top speed).
+    Previously 6th was pinned to the limiter, which the engine can never reach
+    because power at the limiter is below peak. */
+function buildDrivetrain(peakPowerKw, peakPowerRpm, limiter, mass) {
+  const V = CONFIG.vehicle, D = CONFIG.drive;
+  const pWheelMax = peakPowerKw * 1000 * D.eff;
+
+  let lo = 0, hi = 150;
+  for (let i = 0; i < 60; i++) {
+    const mid = (lo + hi) / 2;
+    const p = 0.5 * V.rho * V.CdA * mid ** 3 + V.crr * mass * V.g * mid;
+    if (p < pWheelMax) lo = mid; else hi = mid;
+  }
+  const vTerminal = (lo + hi) / 2;
+
+  const overallTop = peakPowerRpm * D.rollCirc / (60 * vTerminal);
+  const step = Math.pow(D.spread, 1 / 5);
+  const gears = [];
+  for (let i = 1; i <= 6; i++) gears.push(overallTop * Math.pow(step, 6 - i));
+  const kmhAtLimiter = gears.map(r => (limiter * D.rollCirc / (60 * r)) * 3.6);
+
+  return { vTerminal, gears, kmhAtLimiter };
+}
+
+/** Tacho knots: breathing-curve points up to redline, then the LAST knot is the dial
+    maximum. (The old table ended at 1.08*redline < dialMax, so the top of the dial
+    collapsed onto one needle angle.) */
+function buildTachoScale(redline, dialMax) {
+  const mapRpm = BREATH_N.slice(0, 9).map(n => n * redline).concat([dialMax]);
+  const mapF = TACHO_F.slice();
+  const majorStep = niceStep(dialMax / 10, [500, 1000, 2000, 2500, 5000, 10000]);
+  const minorStep = majorStep / 2;
+  const minorFrom = Math.ceil((redline * 0.6) / majorStep) * majorStep;
+  const labelAt = [];
+  for (let r = 0; r <= dialMax; r += majorStep) labelAt.push(r);
+  return { maxRpm: dialMax, redlineFrom: redline, mapRpm, mapF, majorStep, minorStep, minorFrom, labelAt };
+}
+
+function buildSpeedoScale(vTerminalKmh) {
+  const maxKmh = Math.ceil((vTerminalKmh * 1.08) / 20) * 20;
+  const majorStep = maxKmh > 260 ? 40 : 20;
+  return { maxKmh, majorStep, minorStep: majorStep / 2 };
+}
+
+function rebuildModel() {
+  const inp = CONFIG.inputs;
+  const options = LAYOUTS[inp.cylinders];
+  if (!options.some(o => o.angleDeg === inp.crankAngleDeg)) inp.crankAngleDeg = options[0].angleDeg;
+  const layout = options.find(o => o.angleDeg === inp.crankAngleDeg);
+
+  const m = buildEngineModel(inp);
+  const E = CONFIG.engine;
+  E.idleRpm = m.idleRpm;
+  E.idleBandRpm = m.idleRpm + 200;
+  E.limiterCutRpm = m.limiter;
+  E.limiterRestoreRpm = m.limiter - 400;
+  E.inertia = m.inertia;
+  CONFIG.vehicle.mass = MODEL.mass;
+
+  // shift lights follow the live redline (were hard-coded to 11000/11800)
+  CONFIG.leds.amberFrom = Math.round(m.redline * 0.86 / 100) * 100;
+  CONFIG.leds.redFrom = Math.round(m.redline * 0.96 / 100) * 100;
+
+  const dt = buildDrivetrain(m.peakPowerKw, m.peakPowerRpm, m.limiter, MODEL.mass);
+  CONFIG.drive.gears = dt.gears;
+
+  Object.assign(CONFIG.tacho, buildTachoScale(m.redline, m.dialMax));
+  Object.assign(CONFIG.speedo, buildSpeedoScale(dt.vTerminal * 3.6));
+
+  // firing offsets (deg of the 720° cycle) for the audio engine
+  const offsets = [0];
+  for (let i = 0; i < layout.intervals.length - 1; i++) offsets.push(offsets[i] + layout.intervals[i]);
+  audioSet({ cyl: inp.cylinders, offsets });
+
+  LAST_MODEL = m; LAST_DRIVE = dt;
+  resetSim();
+  if (staticLayer.width) drawStaticLayer();
+  updateTweakPanel(m, dt, layout);
+}
+
+let LAST_MODEL = null, LAST_DRIVE = null;
+
+/* -------------------------------------------------------------- SIM STATE */
+const state = {
+  gear: 0, clutchKey: false, lever: 0, locked: false,
+  running: true, starterT: 0, catchT: 0,
+  v: 0, rpm: 1000, omega: 1000 * TAU / 60,
+  thrTarget: 0, thrActual: 0, thrEff: 0, firing: true,
+  idleI: 0,
+  fuelCut: false,
+  shiftTimer: 0, shiftKind: "", upCut: false, upCutT: 0,
+  ledFlash: 0,
+  odoKm: 0, tripKm: 0,
+  tachTheta: 0, tachVel: 0, tachPrev: 0,
+  speedTheta: 0, speedVel: 0, speedPrev: 0
+};
+
+/** Idle throttle that exactly balances friction + pumping at idle: pre-seeds the
+    PI integrator so idle doesn't sag or overshoot on reset. */
+function idleSeed() {
+  const E = CONFIG.engine, r = E.idleRpm;
+  const thr = (FMEP(r) + E.pmepClosed) / (IMEP(r) + E.pmepClosed);
+  return clamp(thr / E.idleKi, 0, E.idleIClamp);
+}
+
+function resetSim() {
+  const E = CONFIG.engine;
+  state.gear = 0; state.clutchKey = false; state.lever = 0; state.locked = false;
+  state.running = true; state.starterT = 0; state.catchT = 0;
+  state.v = 0;
+  state.rpm = E.idleRpm;
+  state.omega = E.idleRpm * TAU / 60;
+  state.thrTarget = state.thrActual = state.thrEff = 0;
+  state.idleI = idleSeed();
+  state.fuelCut = false;
+  state.shiftTimer = 0; state.shiftKind = ""; state.upCut = false;
+  state.ledFlash = 0;
+  state.tripKm = 0;
+  const a0 = fracToAngle(rpmToFrac(E.idleRpm));
+  state.tachTheta = state.tachPrev = a0; state.tachVel = 0;
+  const s0 = fracToAngle(0);
+  state.speedTheta = state.speedPrev = s0; state.speedVel = 0;
+}
+
+/* ============================== PHYSICS =================================
+   Two inertias joined by a friction clutch (Karnopp stick/slip):
+     crank   J·dω/dt = T_engine − T_clutch
+     vehicle m_eff·dv/dt = T_clutch·G·η/r − F_aero − F_roll
+   LOCKED: one combined body; the clutch torque needed to stay locked is
+   checked against capacity every step — exceed it and it slips.
+   SLIPPING: clutch passes its full (engagement-scaled) capacity in the
+   direction of slip; it re-locks when the slip speed crosses zero.
+   Consequences that fall out for free: reflected crank inertia in every gear
+   (~90 kg equivalent in 1st), stalls on a dumped clutch, rpm that syncs through
+   slip after a shift instead of teleporting, and a real launch. */
+function physicsStep(dt) {
+  const E = CONFIG.engine, D = CONFIG.drive, V = CONFIG.vehicle;
+
+  if (state.shiftTimer > 0) { state.shiftTimer -= dt; if (state.shiftTimer <= 0) state.shiftKind = ""; }
+  if (state.ledFlash > 0) state.ledFlash -= dt;
+
+  state.thrActual += (state.thrTarget - state.thrActual) * (1 - Math.exp(-E.throttleRate * dt));
+
+  // clutch lever: 1 = pulled in. Pulls fast, releases over clutchOutSec.
+  if (state.clutchKey) state.lever = Math.min(1, state.lever + dt / E.clutchInSec);
+  else state.lever = Math.max(0, state.lever - dt / E.clutchOutSec);
+  const engage = 1 - smoothstep(0.2, 0.8, state.lever);   // friction zone mid-travel
+
+  let rpm = state.omega * 60 / TAU;
+
+  // rev limiter: hard cut with hysteresis
+  if (rpm >= E.limiterCutRpm) state.fuelCut = true;
+  else if (rpm <= E.limiterRestoreRpm) state.fuelCut = false;
+
+  // throttle: rider, then idle PI (only when running and the rider is off the throttle)
+  let thr = state.thrActual;
+  if (state.running && rpm < E.idleBandRpm && state.thrTarget < 0.02) {
+    const errK = (E.idleRpm - rpm) / 1000;
+    state.idleI = clamp(state.idleI + errK * dt, 0, E.idleIClamp);
+    thr = Math.max(thr, clamp(E.idleKp * errK + E.idleKi * state.idleI, 0, E.idleThrMax));
+  }
+  if (state.shiftKind === "down") thr = Math.max(thr, 0.45);       // auto-blip
+  state.thrEff = thr;
+
+  // starter
+  if (state.starterT > 0) {
+    state.starterT -= dt;
+    if (rpm > 300 && state.starterT < 0.45) { state.running = true; state.starterT = 0; state.catchT = 0.5; state.idleI = idleSeed(); }
+  }
+
+  if (state.upCut) {
+    state.upCutT += dt;
+    if ((state.shiftTimer <= 0 && state.locked) || state.upCutT > 0.20) state.upCut = false;
+  }
+  const firing = state.running && !state.fuelCut && !state.upCut;
+  state.firing = firing;
+  let Te = engineTorque(rpm, thr, firing);
+  if (state.starterT > 0) Te += E.starterNm * clamp(1 - rpm / 650, 0, 1);   // DC starter: torque falls linearly to free speed
+  if (state.catchT > 0) state.catchT -= dt;
+
+  // --- driveline
+  const G = state.gear > 0 ? overallRatio(state.gear) : 0;
+  const r = D.wheelR, mEff = V.mass + D.wheelMassEq, J = E.inertia;
+  const connected = G > 0 && state.shiftTimer <= 0;
+  const cap = connected ? engage * E.clutchCapFactor * MODEL.peakTorqueNm : 0;
+  const Faero = 0.5 * V.rho * V.CdA * state.v * state.v;
+  const Froll = V.crr * V.mass * V.g;
+  const moving = state.v > 0.02;
+
+  if (cap <= 1e-6) {
+    state.locked = false;
+    state.omega += (Te / J) * dt;
+    state.v = Math.max(0, state.v - ((Faero + (moving ? Froll : 0)) / mEff) * dt);
+  } else {
+    if (state.locked) {
+      // combined body, referred to the crank
+      const Jv = mEff * (r / G) * (r / G);
+      const Tload = (Faero + (moving ? Froll : 0)) * r / (G * D.eff);
+      const dw = (Te - Tload) / (J + Jv);
+      const Tc = Te - J * dw;                       // what the clutch must carry to stay locked
+      if (Math.abs(Tc) > cap) state.locked = false;
+      else {
+        state.omega = Math.max(0, state.omega + dw * dt);
+        state.v = state.omega * r / G;
+      }
+    }
+    if (!state.locked) {
+      const omegaG = state.v / r * G;
+      const slip = state.omega - omegaG;
+      const Tc = cap * Math.tanh(slip / 0.8);        // Coulomb friction, smoothed over ~0.8 rad/s
+      state.omega += ((Te - Tc) / J) * dt;
+      const Fdrive = Tc * G * D.eff / r;
+      let F;
+      if (moving) F = Fdrive - Faero - Froll;
+      else F = Fdrive > Froll ? Fdrive - Froll : 0;   // static friction holds the bike at rest
+      state.v = Math.max(0, state.v + (F / mEff) * dt);
+      const slip2 = state.omega - state.v / r * G;
+      if (slip * slip2 <= 0 || Math.abs(slip2) < 0.3) {   // crossed zero -> try to lock
+        const Jv = mEff * (r / G) * (r / G);
+        const Tload = (Faero + (moving ? Froll : 0)) * r / (G * D.eff);
+        const dw = (Te - Tload) / (J + Jv);
+        if (Math.abs(Te - J * dw) <= cap) { state.locked = true; state.omega = state.v / r * G; }
+      }
+    }
+  }
+  if (state.omega < 0) state.omega = 0;
+  state.rpm = state.omega * 60 / TAU;
+
+  // stall: combustion can't recover below stallRpm
+  if (state.running && state.starterT <= 0 && !(state.catchT > 0) && state.rpm < E.stallRpm) { state.running = false; state.fuelCut = false; }
+
+  const km = state.v * dt / 1000;
+  state.odoKm += km;
+  state.tripKm += km;
+
+  state.tachPrev = state.tachTheta;
+  state.speedPrev = state.speedTheta;
+  integrateNeedle("tach", fracToAngle(rpmToFrac(state.rpm)), CONFIG.needle.tach, dt);
+  integrateNeedle("speed", fracToAngle(kmhToFrac(state.v * 3.6)), CONFIG.needle.speed, dt);
+}
+
+function integrateNeedle(key, target, k, dt) {
+  const theta = state[key + "Theta"], vel = state[key + "Vel"];
+  const acc = k.wn * k.wn * (target - theta) - 2 * k.zeta * k.wn * vel;
+  const nv = vel + acc * dt;
+  state[key + "Vel"] = nv;
+  state[key + "Theta"] = theta + nv * dt;
+}
+
+/* ------------------------------------------------------------------ SHIFTS */
+const clutchPulled = () => state.lever > 0.6;
+
+function upshift() {
+  if (state.gear >= 6) return;
+  const from = state.gear;
+  state.gear += 1;
+  state.locked = false;
+  // clutchless upshift in gear = quickshifter cut; from neutral / clutch pulled = plain engagement
+  if (from >= 1 && !clutchPulled()) { state.shiftTimer = CONFIG.drive.upCutSec; state.shiftKind = "up"; state.upCut = true; state.upCutT = 0; }
+}
+
+function downshift() {
+  if (state.gear <= 0) return;
+  const next = state.gear - 1;
+  if (next >= 1 && rpmFromSpeed(state.v, next) > CONFIG.engine.limiterCutRpm) {
+    state.ledFlash = CONFIG.leds.flashSec;          // money-shift protection
+    return;
+  }
+  state.gear = next;
+  state.locked = false;
+  if (next >= 1 && !clutchPulled()) { state.shiftTimer = CONFIG.drive.downCutSec; state.shiftKind = "down"; }
+}
+
+function startEngine() {
+  if (state.running || state.starterT > 0) return;
+  if (state.gear !== 0 && !clutchPulled()) { state.ledFlash = CONFIG.leds.flashSec; return; }  // clutch interlock
+  state.starterT = 0.9;
+}
+
+/* ============================== ENGINE AUDIO ==============================
+   Physical model, not samples. Per-cylinder gas pulses shaped in CRANK ANGLE
+   (so they shorten with rpm, like the real thing) feed a digital-waveguide
+   exhaust: header -> link pipe -> silencer chambers/packing -> tailpipe, with
+   area-change reflections, lossy walls, and d/dt open-end radiation. Pipe
+   resonances are fixed by geometry; only the excitation follows rpm — which is
+   exactly how a real bike's formants behave. Runs in an AudioWorklet (own
+   thread, sample-accurate, immune to rAF / background-tab jitter); falls back
+   to a ScriptProcessor running the same class if worklets are blocked. */
+class EngineDSP {
+  constructor(sr) {
+    this.sr = sr;
+    this.p = { rpm: 1000, load: 0, combust: 1, running: 1, speed: 0, starter: 0,
+               cyl: 2, offsets: [0, 180], exhaust: "stock", listener: "rider",
+               pops: 1, master: 0.8, seed: 12345 };
+    this.rpmS = 1000; this.loadS = 0; this.speedS = 0; this.heat = 0.5; this.wall = 0.75;   // start warmed up
+    this.theta = 0; this.cycleMul = 1;
+    this.rs = 0x9E3779B9 >>> 0;
+    this.cylState = [];
+    const bias = [1.00, 0.92, 1.06, 0.96, 1, 1];     // fixed cylinder-to-cylinder imbalance (trapped mass, spark, valve)
+    for (let i = 0; i < 6; i++) this.cylState.push({ lastPhi: 720, amp: 0, dAmp: 0, pop: 0, popPhi: 0, iAmp: 0, lastIn: 720, bias: bias[i], src: 0 });
+    this.sinceClose = 99; this.prevCombustLoad = 0;
+    this.gearPhase = 0; this.starterPhase = 0;
+    this.buildExhaust("stock");
+    this.setListener("rider");
+    // intake resonators (biquad bandpass states)
+    this.ib1 = this.bp(170, 4.0); this.ib2 = this.bp(620, 3.0);
+    this.mechBp = this.bp(3200, 1.2); this.jetBp = this.bp(1900, 0.6); this.flowEnv = 0; this.combBp = this.bp(1300, 1.0);
+    this.windLp1 = 0; this.windLp2 = 0; this.windHp = 0;
+    this.mechEnv = 0; this.combEnv = 0;
+    this.intakeDiff = 0; this.exDiff = 0;
+    // listener filters
+    this.lpL = 0; this.lpL2 = 0;
+    this.gdel = new Float32Array(4096); this.gw = 0;
+    // stereo room: 4 combs + 2 allpass per side (Schroeder)
+    const mk = n => ({ b: new Float32Array(n), i: 0, lp: 0 });
+    const cl = [1116, 1188, 1277, 1356], cr = [1139, 1211, 1300, 1379], al = [556, 441], ar = [579, 464];
+    const s = sr / 44100;
+    this.combL = cl.map(n => mk(Math.round(n * s * 0.55))); this.combR = cr.map(n => mk(Math.round(n * s * 0.55)));
+    this.apL = al.map(n => mk(Math.round(n * s * 0.55))); this.apR = ar.map(n => mk(Math.round(n * s * 0.55)));
+    this.dcL = 0; this.dcXL = 0; this.dcR = 0; this.dcXR = 0;
+    this.limEnv = 0; this.agc = 1; this.K = 0.094; this.popCount = 0;
+  }
+
+  rand() { let t = (this.rs += 0x6D2B79F5) >>> 0; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }
+  gauss() { let u = this.rand() || 1e-9, v = this.rand(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(6.283185307 * v); }
+
+  bp(f, q) {                       // RBJ constant-peak bandpass, DF1 state inline
+    const w = 2 * Math.PI * f / this.sr, al = Math.sin(w) / (2 * q), a0 = 1 + al;
+    return { b0: al / a0, b2: -al / a0, a1: -2 * Math.cos(w) / a0, a2: (1 - al) / a0, x1: 0, x2: 0, y1: 0, y2: 0 };
+  }
+  bpRun(f, x) { const y = f.b0 * x + f.b2 * f.x2 - f.a1 * f.y1 - f.a2 * f.y2; f.x2 = f.x1; f.x1 = x; f.y2 = f.y1; f.y1 = y; return y; }
+  lpCoef(fc) { return 1 - Math.exp(-2 * Math.PI * fc / this.sr); }
+
+  /* ---------------- exhaust geometry ----------------
+     Each segment: length L (m), relative area S, gas temperature factor (1 = header-hot),
+     wall-loss lowpass fc (Hz) and per-trip gain g. Packing = low fc + lower g. */
+  buildExhaust(kind) {
+    const P = {
+      // valve end reflection rv; tail end radiation corner fr (ka~1 for the outlet)
+      open:  { rv: 0.55, fr: 3400, seg: [
+        { L: 0.52, S: 1.0, T: 1.00, fc: 9000, g: 0.985 },   // primary
+        { L: 0.30, S: 1.7, T: 0.97, fc: 8000, g: 0.985 } ]},   // 2-1 collector, open end
+      slipon: { rv: 0.55, fr: 2600, seg: [
+        { L: 0.52, S: 1.0, T: 1.00, fc: 9000, g: 0.985 },
+        { L: 0.45, S: 1.6, T: 0.95, fc: 6500, g: 0.98 },   // link pipe (cat removed)
+        { L: 0.34, S: 1.8, T: 0.90, fc: 1500, g: 0.90 },   // perforated core in glass-wool packing
+        { L: 0.06, S: 1.6, T: 0.88, fc: 5000, g: 0.98 } ]},
+      stock: { rv: 0.55, fr: 2000, seg: [
+        { L: 0.52, S: 1.0, T: 1.00, fc: 9000, g: 0.985 },
+        { L: 0.50, S: 1.5, T: 0.95, fc: 3500, g: 0.95 },   // link pipe + catalyst brick
+        { L: 0.17, S: 11,  T: 0.85, fc: 6000, g: 0.995 },  // expansion chamber 1 (reactive: near-lossless)
+        { L: 0.11, S: 1.1, T: 0.83, fc: 3000, g: 0.95 },   // crossover tube
+        { L: 0.20, S: 11,  T: 0.80, fc: 900,  g: 0.985 },  // chamber 2, packed: loss rises with frequency
+        { L: 0.20, S: 1.0, T: 0.78, fc: 3000, g: 0.97 } ]}  // tailpipe
+    }[kind] || null;
+    const cfg = P || this.buildExhaustDefault();
+    this.exKind = kind;
+    this.rv = cfg.rv;
+    this.endA = this.lpCoef(cfg.fr); this.endLp = 0; this.radLp = 0;
+    const MAXD = 256;
+    const mkSeg = s => ({
+      L: s.L, T: s.T, g: s.g, S: s.S, a: this.lpCoef(s.fc),
+      F: new Float32Array(MAXD), B: new Float32Array(MAXD), lf: 0, lb: 0, fo: 0, bo: 0
+    });
+    // one primary PER CYLINDER (Engine Sim: per-cylinder primary_length), meeting at an N-port collector
+    this.primCfg = cfg.seg[0];
+    this.prim = [0, 1, 2, 3].map(() => mkSeg(cfg.seg[0]));
+    this.seg = cfg.seg.slice(1).map(mkSeg);
+    this.junc = [];
+    for (let k = 0; k < this.seg.length - 1; k++) {
+      const S1 = this.seg[k].S, S2 = this.seg[k + 1].S;
+      this.junc.push((S1 - S2) / (S1 + S2));        // pressure reflection for a wave arriving from the left
+    }
+    this.layoutPrimaries();
+    this.wi = 0;
+    // calibrated in offline tests: open 0 dB, slip-on -4 dB, stock -11 dB at 6000 rpm WOT
+    this.exGain = { open: 1.0, slipon: 1.05, stock: 3.5 }[kind] || 1;
+    this.jetK = { open: 0.75, slipon: 0.4, stock: 0.05 }[kind] || 0.5;
+    this.popK = { open: 1.4, slipon: 1.1, stock: 0.42 }[kind] || 1;   // lean overrun + less back-pressure = more afterfire
+    // (afterfire is injected at the collector outlet, i.e. into seg[0])
+  }
+  buildExhaustDefault() { return null; }
+
+  /* Unequal primary lengths per layout (m, relative to the base primary) — a real
+     header is never perfectly equal-length, and the path difference is part of a
+     bike's voice (phase between cylinders at the collector). */
+  layoutPrimaries() {
+    const n = this.p.cyl, base = this.primCfg.L;
+    const mul = { 2: [1.0, 1.19], 3: [1.0, 1.10, 1.21], 4: [1.0, 1.16, 1.16, 1.0] }[n] || [1, 1, 1, 1];
+    for (let c = 0; c < 4; c++) this.prim[c].L = base * (mul[c] || 1);
+    // downstream areas are authored for a twin; scale for more primaries feeding the collector
+    this.areaScale = Math.max(1, n / 2);
+  }
+
+  setListener(kind) {
+    this.listener = kind;
+    const L = {
+      rider:     { ex: 0.85, in: 0.95, mech: 0.55, wind: 1.0, lp: 3800, ground: 0.0,  gdMs: 0,   room: 0.05, roomFb: 0.70 },
+      trackside: { ex: 1.00, in: 0.18, mech: 0.10, wind: 0.0, lp: 5500, ground: 0.55, gdMs: 2.2, room: 0.22, roomFb: 0.80 },
+      dyno:      { ex: 1.35, in: 0.12, mech: 0.22, wind: 0.0, lp: 16000, ground: 0.3, gdMs: 1.1, room: 0.16, roomFb: 0.74 }
+    }[kind] || null;
+    this.L = L || { ex: 1, in: 0.3, mech: 0.2, wind: 0, lp: 8000, ground: 0, gdMs: 0, room: 0.1, roomFb: 0.7 };
+    this.lpLa = this.lpCoef(this.L.lp);
+    this.gd = Math.max(1, Math.round(this.L.gdMs * 1e-3 * this.sr));
+  }
+
+  set(msg) {
+    const p = this.p;
+    for (const k in msg) p[k] = msg[k];
+    if (msg.exhaust && msg.exhaust !== this.exKind) this.buildExhaust(msg.exhaust);
+    if (msg.listener && msg.listener !== this.listener) this.setListener(msg.listener);
+    if (msg.cyl !== undefined) this.layoutPrimaries();
+  }
+
+  /* One-sided gas pulses in crank-angle domain (deg after exhaust-valve-open). */
+  static blow(phi, pb) { if (phi <= 0 || phi > 8 * pb) return 0; const x = phi / pb; return x * x * Math.exp(2 * (1 - x)); }
+  static disp(phi) { if (phi < 30 || phi > 250) return 0; const s = Math.sin(Math.PI * (phi - 30) / 220); return s * s; }
+
+  render(outL, outR, n) {
+    const p = this.p, sr = this.sr, L = this.L;
+    const aR = 1 - Math.exp(-1 / (0.012 * sr)), aL = 1 - Math.exp(-1 / (0.006 * sr));
+    const aV = 1 - Math.exp(-1 / (0.3 * sr)), aH = 1 - Math.exp(-1 / (4.0 * sr)), aW = 1 - Math.exp(-1 / (40 * sr));
+    const cyl = p.cyl, offs = p.offsets;
+    const segs = this.seg, nS = segs.length, J = this.junc;
+    const MAXD = 256, mask = MAXD - 1;
+    const combs = [this.combL, this.combR], aps = [this.apL, this.apR];
+
+    for (let i = 0; i < n; i++) {
+      // ---- parameter smoothing (no zipper noise)
+      this.rpmS += (p.rpm - this.rpmS) * aR;
+      this.loadS += (p.load * p.combust - this.loadS) * aL;
+      this.speedS += (p.speed - this.speedS) * aV;
+      this.heat += ((0.35 + 0.65 * this.loadS) * Math.min(1, this.rpmS / 9000 + 0.2) - this.heat) * aH;
+      this.wall += (this.heat - this.wall) * aW;            // steel wall: tau ~40 s
+      const rpm = this.rpmS, load = this.loadS;
+      const running = p.running > 0.5;
+
+      // burble window: time since throttle closed while combusting
+      if (p.load > 0.12 && p.combust) this.sinceClose = 0; else this.sinceClose += 1 / sr;
+
+      // ---- crank angle (720 deg per 4-stroke cycle), with per-cycle speed wobble
+      const dTheta = 6 * rpm / sr * this.cycleMul;
+      const prevTheta = this.theta;
+      this.theta += dTheta;
+      if (this.theta >= 720) {
+        this.theta -= 720;
+        const idleness = Math.max(0, 1 - rpm / 3000) * (1 - 0.6 * load);
+        this.cycleMul = 1 + 0.008 * idleness * this.gauss();
+      }
+
+      // ---- gas-dynamic sources
+      let popSrc = 0, inSrc = 0, mechImp = 0, combImp = 0;
+      const rpmK = rpm / 1000;                              // pulse height ∝ mass/time ∝ rpm
+      const pb = 16 + 10 * (1 - load);                      // blowdown width: faster when cylinder pressure is high
+      for (let c = 0; c < cyl; c++) {
+        const cs = this.cylState[c];
+        let phi = this.theta - offs[c]; if (phi < 0) phi += 720;          // 0 = firing TDC
+        const pe = phi - 130; const pex = pe < 0 ? pe + 720 : pe;           // deg after EVO
+        if (pex < cs.lastPhi) {                                            // new exhaust event: latch amplitudes
+          const cov = 0.025 + 0.12 * (1 - load) * Math.max(0, 1 - rpm / 4000);
+          if (running && p.combust) {
+            cs.amp = cs.bias * (0.10 + 0.90 * load) * Math.max(0.3, 1 + cov * this.gauss());
+          } else cs.amp = running ? 0.035 : 0.02;                           // motoring: air only
+          cs.dAmp = (running ? 0.10 + 0.35 * load : 0.05) * (1 + 0.02 * this.gauss());
+          // afterfire on closed throttle: unburnt charge lighting off in the hot header
+          cs.pop = 0;
+          if (running && p.pops > 0 && p.load < 0.05 && rpm > 2200 && this.sinceClose < 1.6) {
+            const win = Math.exp(-this.sinceClose / 0.6);
+            const wallOk = Math.min(1, Math.max(0, (this.wall - 0.40) / 0.25));   // cold pipe cannot light it
+            const prob = p.pops * 0.09 * this.popK * win * Math.min(1, (rpm - 2200) / 3000) * wallOk * 1.2;
+            if (this.rand() < prob) { cs.pop = (0.5 + 0.9 * this.rand()) * (0.6 + 0.6 * this.heat); cs.popPhi = 20 + 60 * this.rand(); this.popCount++; }
+          }
+          if (running) combImp += cs.amp * 0.8;                             // combustion knock through the block
+          mechImp += 0.5;                                                   // exhaust valve seats
+        }
+        cs.lastPhi = pex;
+        cs.src = rpmK * (cs.amp * EngineDSP.blow(pex, pb) + cs.dAmp * EngineDSP.disp(pex))
+        // choked-flow front: fixed ~0.25 ms rise independent of rpm -> the "bark" at low rpm
+               + 0.9 * cs.amp * EngineDSP.blow(pex / (0.006 * rpm + 1e-6), 0.25);
+        if (cs.pop > 0) { const q = pex - cs.popPhi; if (q > 0) { const qt = q / (0.006 * rpm + 1e-6); if (qt < 2.0) popSrc += cs.pop * 2.6 * EngineDSP.blow(qt, 0.18); } }   // crack: ~0.18 ms rise in TIME (band-limited)
+
+        // intake stroke ~ 360..580 deg: suction pulse; sharp valve-closing edge
+        let pin = phi - 355; if (pin < 0) pin += 720;
+        if (pin < cs.lastIn) { cs.iAmp = 0.15 + 0.85 * p.load; mechImp += 0.4; }
+        cs.lastIn = pin;
+        if (pin < 225) { const s = Math.sin(Math.PI * pin / 225); inSrc -= rpmK * cs.iAmp * s * s * s; }
+      }
+
+      // ---- exhaust waveguide (pressure waves, fractional delays)
+      const cHot = 470 + 160 * this.heat;                   // m/s: ~470 cold-ish -> ~630 at full heat
+      this.wi = (this.wi + 1) & mask;
+      const prim = this.prim;
+      for (let k = 0; k < nS + cyl; k++) {
+        const s = k < nS ? segs[k] : prim[k - nS];
+        const d = Math.min(MAXD - 3, Math.max(2, s.L / (cHot * s.T) * sr));
+        const di = d | 0, fr = d - di;
+        let r0 = (this.wi - di) & mask, r1 = (r0 - 1) & mask;
+        let f = s.F[r0] + (s.F[r1] - s.F[r0]) * fr;
+        let b = s.B[r0] + (s.B[r1] - s.B[r0]) * fr;
+        s.lf += (f - s.lf) * s.a; s.lb += (b - s.lb) * s.a;           // wall/packing loss
+        s.fo = s.lf * s.g; s.bo = s.lb * s.g;
+      }
+      // inputs for this sample
+      const w = this.wi;
+      // valve ends of each primary: source + partial reflection
+      for (let c = 0; c < cyl; c++) prim[c].F[w] = this.cylState[c].src + this.rv * prim[c].bo;
+      // N-port collector (pressure scattering junction): p_J = 2·Σ(S_i p_i+)/Σ S_i, p_i- = p_J − p_i+
+      const Sc = segs[0].S * this.areaScale;
+      let num = Sc * segs[0].bo, den = Sc;
+      for (let c = 0; c < cyl; c++) { num += prim[c].fo; den += 1; }
+      const pJ = 2 * num / den;
+      for (let c = 0; c < cyl; c++) prim[c].B[w] = pJ - prim[c].fo;
+      segs[0].F[w] = pJ - segs[0].bo + popSrc;
+      for (let k = 0; k < nS - 1; k++) {
+        const r = J[k], fL = segs[k].fo, bR = segs[k + 1].bo;
+        segs[k + 1].F[w] = (1 + r) * fL - r * bR;
+        segs[k].B[w] = r * fL + (1 - r) * bR;
+      }
+      const last = segs[nS - 1];
+      this.endLp += (last.fo - this.endLp) * this.endA;
+      last.B[w] = -0.97 * this.endLp;                        // open end: inverted, low frequencies reflect most
+      const u = last.fo + 0.97 * this.endLp;                 // volume velocity at the outlet
+      let exRad = (u - this.exDiff) * 40; this.exDiff = u;  // far field p ∝ du/dt
+      // turbulent jet noise at the tailpipe: broadband rasp riding each flow pulse (not muffled — made downstream)
+      this.flowEnv += (Math.abs(u) - this.flowEnv) * 0.02;
+      exRad += this.bpRun(this.jetBp, this.rand() * 2 - 1) * Math.pow(this.flowEnv, 1.4) * this.jetK;
+
+      // ---- intake: airbox Helmholtz + snorkel quarter-wave, radiated as d/dt
+      const ib = this.bpRun(this.ib1, inSrc) + 0.6 * this.bpRun(this.ib2, inSrc);
+      const inRad = (ib - this.intakeDiff) * 85; this.intakeDiff = ib;
+
+      // ---- mechanical: valve seats + combustion through the cases + primary gear whine
+      this.mechEnv = this.mechEnv * Math.exp(-1 / (0.0012 * sr)) + mechImp * (0.3 + rpm / 14000);
+      this.combEnv = this.combEnv * Math.exp(-1 / (0.0025 * sr)) + combImp;
+      const nz = this.rand() * 2 - 1;
+      let mech = this.bpRun(this.mechBp, nz * this.mechEnv) * 0.9 + this.bpRun(this.combBp, (this.rand() * 2 - 1) * this.combEnv) * 0.9;
+      this.gearPhase += 2 * Math.PI * (rpm / 60 * 23) / sr; if (this.gearPhase > 6.2832) this.gearPhase -= 6.2832;
+      if (running || rpm > 50) mech += Math.sin(this.gearPhase) * 0.07 * (0.3 + load) * Math.min(1, rpm / 3000);
+      if (p.starter > 0) { this.starterPhase += 2 * Math.PI * 1150 / sr; mech += (Math.sin(this.starterPhase) * 0.35 + nz * 0.15) * p.starter; }
+
+      // ---- wind (rider only): noise with v^2 energy, low-passed like a helmet
+      const vk = this.speedS / 30;
+      this.windLp1 += ((this.rand() * 2 - 1) - this.windLp1) * 0.03;
+      this.windLp2 += (this.windLp1 - this.windLp2) * 0.05;
+      const wind = this.windLp2 * vk * vk * 0.9;
+
+      // ---- listener mix
+      let dry = exRad * this.exGain * L.ex + inRad * L.in + mech * L.mech + wind * L.wind;
+      if (!isFinite(dry)) { dry = 0; this.buildExhaust(this.exKind); }
+      this.lpL += (dry - this.lpL) * this.lpLa; this.lpL2 += (this.lpL - this.lpL2) * this.lpLa;
+      let x = this.lpL2;
+      if (L.ground > 0) {                                     // ground bounce: comb from the reflected path
+        this.gdel[this.gw] = x;
+        x += L.ground * this.gdel[(this.gw - this.gd + 4096) & 4095];
+        this.gw = (this.gw + 1) & 4095;
+      }
+      // loudness taming: humans / mics gain-ride; physics alone spans >45 dB idle->redline
+      if (!p.noTame) x *= this.K * Math.pow(Math.max(rpm, 400) / 1000, -0.72);  // ~-16 dB over the rev range (idle otherwise reads far too quiet)
+      x *= p.master;
+
+      // ---- stereo room
+      const out = [0, 0];
+      for (let ch = 0; ch < 2; ch++) {
+        let acc = 0;
+        for (const cb of combs[ch]) {
+          const y = cb.b[cb.i]; cb.lp += (y - cb.lp) * 0.45;
+          cb.b[cb.i] = x + cb.lp * L.roomFb; cb.i = (cb.i + 1) % cb.b.length; acc += y;
+        }
+        acc *= 0.25;
+        for (const ap of aps[ch]) {
+          const bufout = ap.b[ap.i], y = -acc + bufout;
+          ap.b[ap.i] = acc + bufout * 0.5; ap.i = (ap.i + 1) % ap.b.length; acc = y;
+        }
+        out[ch] = x + acc * L.room;
+      }
+      // ---- DC block + peak limiter (1 ms attack, 180 ms release) + soft safety clip
+      let yL = out[0] - this.dcXL + 0.9995 * this.dcL; this.dcXL = out[0]; this.dcL = yL;
+      let yR = out[1] - this.dcXR + 0.9995 * this.dcR; this.dcXR = out[1]; this.dcR = yR;
+      const pk = Math.max(Math.abs(yL), Math.abs(yR));
+      const target = pk > 0.7 ? 0.7 / pk : 1;
+      this.agc += (target - this.agc) * (target < this.agc ? 0.05 : 1 / (0.18 * sr));
+      yL *= this.agc; yR *= this.agc;
+      outL[i] = Math.tanh(yL * 1.1) / 1.1;
+      outR[i] = Math.tanh(yR * 1.1) / 1.1;
+    }
+  }
+}
+
+
+const AUDIO = { ctx: null, node: null, dsp: null, gain: null, mode: "", started: false, muted: false, pending: {} };
+
+function audioSet(msg) {
+  Object.assign(AUDIO.pending, msg);
+  if (AUDIO.node) AUDIO.node.port.postMessage(msg);
+  else if (AUDIO.dsp) AUDIO.dsp.set(msg);
+}
+
+function soundConfigMsg() {
+  const s = CONFIG.sound;
+  return { exhaust: s.exhaust, listener: s.listener, pops: s.pops ? 1 : 0, master: s.volume };
+}
+
+async function ensureAudio() {
+  if (AUDIO.started) {
+    if (AUDIO.ctx && AUDIO.ctx.state === "suspended" && !document.hidden) AUDIO.ctx.resume();
+    return;
+  }
+  AUDIO.started = true;
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) { setAudioLabel("unsupported"); return; }
+  const ctx = new Ctx({ latencyHint: "interactive" });
+  AUDIO.ctx = ctx;
+  const gain = ctx.createGain();
+  gain.gain.value = AUDIO.muted ? 0 : 1;
+  gain.connect(ctx.destination);
+  AUDIO.gain = gain;
+  const init = Object.assign({}, AUDIO.pending, soundConfigMsg());
+
+  let ok = false;
+  if (ctx.audioWorklet && window.Blob && window.URL) {
+    try {
+      const src = EngineDSP.toString() + `
+class EngineProc extends AudioWorkletProcessor {
+  constructor() { super(); this.d = new EngineDSP(sampleRate); this.port.onmessage = e => this.d.set(e.data); }
+  process(inputs, outputs) {
+    const o = outputs[0];
+    if (o && o[0]) this.d.render(o[0], o[1] || new Float32Array(o[0].length), o[0].length);
+    return true;
+  }
+}
+registerProcessor("engine-dsp", EngineProc);`;
+      const url = URL.createObjectURL(new Blob([src], { type: "application/javascript" }));
+      await ctx.audioWorklet.addModule(url);
+      URL.revokeObjectURL(url);
+      const node = new AudioWorkletNode(ctx, "engine-dsp", { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2] });
+      node.connect(gain);
+      AUDIO.node = node;
+      node.port.postMessage(init);
+      AUDIO.mode = "AudioWorklet";
+      ok = true;
+    } catch (e) { /* CSP or old browser: fall through */ }
+  }
+  if (!ok) {
+    const dsp = new EngineDSP(ctx.sampleRate);
+    dsp.set(init);
+    const sp = ctx.createScriptProcessor(1024, 0, 2);
+    sp.onaudioprocess = ev => {
+      const b = ev.outputBuffer;
+      dsp.render(b.getChannelData(0), b.getChannelData(1), b.length);
+    };
+    sp.connect(gain);
+    AUDIO.dsp = dsp; AUDIO.sp = sp;
+    AUDIO.mode = "ScriptProcessor (fallback)";
+  }
+  setAudioLabel(AUDIO.mode + " @ " + ctx.sampleRate + " Hz");
+  if (ctx.state === "suspended") ctx.resume();
+}
+
+function setAudioLabel(t) { const el = document.getElementById("out-audio"); if (el) el.textContent = t; }
+
+/** Sent once per rendered frame. The DSP smooths these, so 60 Hz updates never zipper. */
+function pushAudioState() {
+  if (!AUDIO.node && !AUDIO.dsp) return;
+  audioSet({
+    rpm: state.rpm,
+    load: state.thrEff,
+    combust: state.firing ? 1 : 0,
+    running: state.running ? 1 : 0,
+    speed: state.v,
+    starter: state.starterT > 0 ? 1 : 0
+  });
+}
+
+function toggleMute() {
+  AUDIO.muted = !AUDIO.muted;
+  if (AUDIO.ctx && AUDIO.gain) {
+    const g = AUDIO.gain.gain, t = AUDIO.ctx.currentTime;
+    g.cancelScheduledValues(t);
+    g.setValueAtTime(g.value, t);
+    g.linearRampToValueAtTime(AUDIO.muted ? 0 : 1, t + 0.05);
+  }
+  const btn = document.getElementById("btn-mute");
+  if (btn) { btn.textContent = AUDIO.muted ? "Unmute" : "Mute"; btn.classList.toggle("active", AUDIO.muted); }
+}
+
+// a hidden tab stops rAF (and so the physics); stop the audio with it instead of droning
+document.addEventListener("visibilitychange", () => {
+  if (!AUDIO.ctx) return;
+  if (document.hidden) AUDIO.ctx.suspend(); else AUDIO.ctx.resume();
+});
+
+/* ============================== RENDERING =============================== */
+const canvas = document.getElementById("pods");
+const ctx = canvas.getContext("2d", { alpha: false });
+
+const L = CONFIG.layout;
+const LOGICAL_W = L.pad * 2 + L.tachoDia + L.gap + L.speedoDia;
+const LOGICAL_H = L.pad * 2 + L.tachoDia;
+
+const TACH = { cx: L.pad + L.tachoDia / 2, cy: L.pad + L.tachoDia / 2, R: L.tachoDia / 2 };
+const SPEED = { cx: L.pad + L.tachoDia + L.gap + L.speedoDia / 2, cy: L.pad + L.tachoDia / 2, R: L.speedoDia / 2 };
+const faceR = R => R - L.bezel - 4;
+
+let dpr = 1;
+const staticLayer = document.createElement("canvas");
+const sctx = staticLayer.getContext("2d");
+
+function resize() {
+  dpr = Math.min(window.devicePixelRatio || 1, 3);
+  const fit = Math.min(1, (window.innerWidth - 16) / LOGICAL_W, (window.innerHeight - 16) / LOGICAL_H);
+  canvas.width  = Math.round(LOGICAL_W * dpr);
+  canvas.height = Math.round(LOGICAL_H * dpr);
+  canvas.style.width  = (LOGICAL_W * fit) + "px";
+  canvas.style.height = (LOGICAL_H * fit) + "px";
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  staticLayer.width  = canvas.width;
+  staticLayer.height = canvas.height;
+  sctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  drawStaticLayer();
+}
+
+function chromeGradient(c, cx, cy, R) {
+  if (c.createConicGradient) {
+    const g = c.createConicGradient(-Math.PI / 2, cx, cy);
+    const stops = [
+      [0.00, "#F7F7F5"], [0.08, "#9B9DA0"], [0.17, "#E9EAEA"],
+      [0.28, "#6E7175"], [0.38, "#D3D5D6"], [0.50, "#FAFAF8"],
+      [0.62, "#8A8D91"], [0.72, "#E4E5E5"], [0.83, "#65686C"],
+      [0.92, "#D8D9DA"], [1.00, "#F7F7F5"]
+    ];
+    for (const [p, col] of stops) g.addColorStop(p, col);
+    return g;
+  }
+  const g = c.createLinearGradient(cx - R, cy - R, cx + R, cy + R);
+  g.addColorStop(0, "#F5F5F3"); g.addColorStop(0.35, "#7E8184");
+  g.addColorStop(0.6, "#E8E9E9"); g.addColorStop(1, "#6C6F72");
+  return g;
+}
+
+function drawStaticLayer() {
+  sctx.clearRect(0, 0, LOGICAL_W, LOGICAL_H);
+  sctx.fillStyle = CONFIG.color.page;
+  sctx.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
+  drawTachoFace(sctx);
+  drawSpeedoFace(sctx);
+}
+
+function drawPodShell(c, cx, cy, R) {
+  c.save();
+  c.shadowColor = "rgba(0,0,0,0.9)"; c.shadowBlur = 22; c.shadowOffsetY = 6;
+  c.fillStyle = "#0A0A0A";
+  c.beginPath(); c.arc(cx, cy, R, 0, TAU); c.fill();
+  c.restore();
+
+  c.save();
+  c.lineWidth = L.bezel;
+  c.strokeStyle = chromeGradient(c, cx, cy, R);
+  c.beginPath(); c.arc(cx, cy, R - L.bezel / 2, 0, TAU); c.stroke();
+  c.lineWidth = 1;
+  c.strokeStyle = "rgba(255,255,255,0.55)";
+  c.beginPath(); c.arc(cx, cy, R - 0.5, 0, TAU); c.stroke();
+  c.strokeStyle = "rgba(0,0,0,0.65)";
+  c.beginPath(); c.arc(cx, cy, R - L.bezel + 0.5, 0, TAU); c.stroke();
+  c.restore();
+
+  c.lineWidth = 4;
+  c.strokeStyle = "#0E0F10";
+  c.beginPath(); c.arc(cx, cy, R - L.bezel - 2, 0, TAU); c.stroke();
+
+  const fr = faceR(R);
+  const g = c.createRadialGradient(cx, cy - fr * 0.25, fr * 0.1, cx, cy, fr);
+  g.addColorStop(0, "#FBFAF5");
+  g.addColorStop(0.72, CONFIG.color.face);
+  g.addColorStop(1, "#DFDCD2");
+  c.fillStyle = g;
+  c.beginPath(); c.arc(cx, cy, fr, 0, TAU); c.fill();
+  return fr;
+}
+
+function tickAt(c, cx, cy, f, rOuter, rInner, width, color) {
+  const a = fracToAngle(f);
+  const ca = Math.cos(a), sa = Math.sin(a);
+  c.beginPath();
+  c.lineWidth = width; c.lineCap = "butt"; c.strokeStyle = color;
+  c.moveTo(cx + ca * rOuter, cy + sa * rOuter);
+  c.lineTo(cx + ca * rInner, cy + sa * rInner);
+  c.stroke();
+}
+
+function labelAt(c, cx, cy, f, r, text, size) {
+  const a = fracToAngle(f);
+  c.font = "600 " + size + "px ui-sans-serif, 'Helvetica Neue', Arial, sans-serif";
+  c.fillStyle = CONFIG.color.ink;
+  c.textAlign = "center"; c.textBaseline = "middle";
+  c.fillText(text, cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+}
+
+function drawTachoFace(c) {
+  const { cx, cy, R } = TACH;
+  const fr = drawPodShell(c, cx, cy, R);
+
+  const a0 = fracToAngle(rpmToFrac(CONFIG.tacho.redlineFrom));
+  const a1 = fracToAngle(rpmToFrac(CONFIG.tacho.maxRpm));
+  c.save();
+  c.lineWidth = fr * 0.055;
+  c.strokeStyle = CONFIG.color.redline;
+  c.beginPath(); c.arc(cx, cy, fr * 0.925, a0, a1); c.stroke();
+  c.restore();
+
+  const T = CONFIG.tacho;
+  for (let r = T.minorFrom; r <= T.maxRpm; r += T.minorStep) {
+    if (r % T.majorStep === 0) continue;
+    tickAt(c, cx, cy, rpmToFrac(r), fr * 0.955, fr * 0.895, 1.4, CONFIG.color.ink);
+  }
+  for (let r = 0; r <= T.maxRpm; r += T.majorStep) {
+    tickAt(c, cx, cy, rpmToFrac(r), fr * 0.958, fr * 0.838, 2.6, CONFIG.color.ink);
+  }
+  // Collision-aware numerals. The scale is compressed at low rpm, so below the
+  // point where 1000-rpm steps stop fitting, only every s-th step is numbered
+  // (s = 2, then 4 ...), giving an even 0, 2, 4 run like a real non-linear tacho.
+  // Boxes carry visual padding so vertically stacked numerals don't read as a pile.
+  const lr = fr * 0.715, ls = fr * 0.135, pad = ls * 0.28;
+  const box = rpm => {
+    const txt = String(rpm / 1000), a = fracToAngle(rpmToFrac(rpm));
+    const w = ls * 0.62 * txt.length + 2 * pad, h = ls * 0.78 + 2 * pad;
+    const x = cx + Math.cos(a) * lr, y = cy + Math.sin(a) * lr;
+    return { rpm, txt, x0: x - w / 2, x1: x + w / 2, y0: y - h / 2, y1: y + h / 2 };
+  };
+  const hit = (p, q) => p.x0 < q.x1 && q.x0 < p.x1 && p.y0 < q.y1 && q.y0 < p.y1;
+  const all = T.labelAt.map(box), step = T.majorStep;
+  // Z: lowest index from which every consecutive pair up to the dial max is clear
+  let z = all.length - 1;
+  while (z > 0 && !hit(all[z - 1], all[z])) z--;
+  let kept = all;
+  if (z > 0) {
+    for (const s of [2, 3, 4, 5, 10]) {
+      const set = all.filter((bx, i) => i >= z ? (i > z || (bx.rpm / step) % s === 0 || true) : (bx.rpm / step) % s === 0);
+      // drop anything in the comfortable zone that collides with the thinned run below it
+      const out = [];
+      for (const bx of set) if (!out.some(k => hit(k, bx))) out.push(bx);
+      const dropsAbove = set.filter(bx => bx.rpm >= all[z].rpm && !out.includes(bx)).length;
+      kept = out;
+      if (dropsAbove <= 1) break;
+    }
+  }
+  // the dial maximum always survives
+  const top = all[all.length - 1];
+  if (!kept.includes(top)) { kept = kept.filter(k => !hit(k, top)); kept.push(top); }
+  for (const b of kept) labelAt(c, cx, cy, rpmToFrac(b.rpm), lr, b.txt, ls);
+
+  c.textAlign = "center"; c.textBaseline = "middle";
+  c.fillStyle = CONFIG.color.ink;
+  c.font = "500 " + (fr * 0.088) + "px ui-sans-serif, 'Helvetica Neue', Arial, sans-serif";
+  c.fillText("R.P.M.  x 1000", cx, cy - fr * 0.30);
+  c.font = "600 " + (fr * 0.072) + "px ui-sans-serif, 'Helvetica Neue', Arial, sans-serif";
+  c.fillStyle = "rgba(20,21,23,0.55)";
+  const CYL_NAME = { 2: "TWIN", 3: "TRIPLE", 4: "FOUR" };
+  const inp = CONFIG.inputs;
+  c.fillText(Math.round(inp.displacementCc) + "  " + CYL_NAME[inp.cylinders], cx, cy - fr * 0.53);
+
+  drawGlass(c, cx, cy, fr);
+}
+
+function drawSpeedoFace(c) {
+  const { cx, cy, R } = SPEED;
+  const fr = drawPodShell(c, cx, cy, R);
+  const S = CONFIG.speedo;
+  for (let v = 0; v <= S.maxKmh; v += S.minorStep) {
+    if (v % S.majorStep === 0) continue;
+    tickAt(c, cx, cy, kmhToFrac(v), fr * 0.955, fr * 0.895, 1.4, CONFIG.color.ink);
+  }
+  for (let v = 0; v <= S.maxKmh; v += S.majorStep) {
+    tickAt(c, cx, cy, kmhToFrac(v), fr * 0.958, fr * 0.838, 2.6, CONFIG.color.ink);
+    labelAt(c, cx, cy, kmhToFrac(v), fr * 0.715, String(v), fr * 0.125);
+  }
+  c.textAlign = "center"; c.textBaseline = "middle";
+  c.fillStyle = CONFIG.color.ink;
+  c.font = "500 " + (fr * 0.10) + "px ui-sans-serif, 'Helvetica Neue', Arial, sans-serif";
+  c.fillText("km/h", cx, cy - fr * 0.30);
+  drawGlass(c, cx, cy, fr);
+}
+
+function drawGlass(c, cx, cy, fr) {
+  c.save();
+  c.beginPath(); c.arc(cx, cy, fr, 0, TAU); c.clip();
+  const g = c.createLinearGradient(cx - fr, cy - fr, cx + fr * 0.3, cy + fr);
+  g.addColorStop(0, "rgba(255,255,255,0.40)");
+  g.addColorStop(0.35, "rgba(255,255,255,0.06)");
+  g.addColorStop(0.6, "rgba(0,0,0,0.00)");
+  g.addColorStop(1, "rgba(0,0,0,0.10)");
+  c.fillStyle = g;
+  c.fillRect(cx - fr, cy - fr, fr * 2, fr * 2);
+  c.restore();
+}
+
+/* ------------------------------------------------------------ 7-SEGMENT LCD */
+const SEGMENTS = {
+  "0": "abcdef", "1": "bc", "2": "abged", "3": "abgcd", "4": "fgbc",
+  "5": "afgcd", "6": "afgecd", "7": "abc", "8": "abcdefg", "9": "abcdfg",
+  "n": "ceg", "-": "g", " ": ""
+};
+
+function segH(c, x, y, len, t) {
+  c.beginPath();
+  c.moveTo(x, y); c.lineTo(x + t / 2, y - t / 2); c.lineTo(x + len - t / 2, y - t / 2);
+  c.lineTo(x + len, y); c.lineTo(x + len - t / 2, y + t / 2); c.lineTo(x + t / 2, y + t / 2);
+  c.closePath(); c.fill();
+}
+function segV(c, x, y, len, t) {
+  c.beginPath();
+  c.moveTo(x, y); c.lineTo(x + t / 2, y + t / 2); c.lineTo(x + t / 2, y + len - t / 2);
+  c.lineTo(x, y + len); c.lineTo(x - t / 2, y + len - t / 2); c.lineTo(x - t / 2, y + t / 2);
+  c.closePath(); c.fill();
+}
+
+function drawSegChar(c, ch, x, y, w, h) {
+  const t = h * 0.15;
+  const on = SEGMENTS[ch] !== undefined ? SEGMENTS[ch] : "";
+  const half = h / 2;
+  const geom = {
+    a: () => segH(c, x, y, w, t), g: () => segH(c, x, y + half, w, t), d: () => segH(c, x, y + h, w, t),
+    f: () => segV(c, x, y, half, t), b: () => segV(c, x + w, y, half, t),
+    e: () => segV(c, x, y + half, half, t), c: () => segV(c, x + w, y + half, half, t)
+  };
+  for (const key of "abcdefg") {
+    c.fillStyle = on.indexOf(key) !== -1 ? CONFIG.color.lcdOn : CONFIG.color.lcdOff;
+    geom[key]();
+  }
+}
+
+function segStringWidth(str, dw, dh, gap) {
+  let w = 0;
+  for (const ch of str) w += (ch === "." ? dh * 0.28 : dw + gap);
+  return w - gap;
+}
+
+function drawLcdPanel(c, cx, cy, w, h) {
+  const r = 3;
+  c.save();
+  c.beginPath();
+  c.moveTo(cx - w / 2 + r, cy - h / 2);
+  c.arcTo(cx + w / 2, cy - h / 2, cx + w / 2, cy + h / 2, r);
+  c.arcTo(cx + w / 2, cy + h / 2, cx - w / 2, cy + h / 2, r);
+  c.arcTo(cx - w / 2, cy + h / 2, cx - w / 2, cy - h / 2, r);
+  c.arcTo(cx - w / 2, cy - h / 2, cx + w / 2, cy - h / 2, r);
+  c.closePath();
+  c.fillStyle = CONFIG.color.lcdBack; c.fill();
+  c.lineWidth = 2; c.strokeStyle = "rgba(0,0,0,0.55)"; c.stroke();
+  c.restore();
+}
+
+function drawTachoLcd(c) {
+  const fr = faceR(TACH.R);
+  const cx = TACH.cx, cy = TACH.cy + fr * 0.46;
+  const w = fr * 0.34, h = fr * 0.30;
+  drawLcdPanel(c, cx, cy, w, h);
+
+  const dh = h * 0.58, dw = dh * 0.56;
+  const ch = state.gear === 0 ? "n" : String(state.gear);
+  const sw = segStringWidth(ch, dw, dh, 3);
+  drawSegChar(c, ch, cx - sw / 2, cy - dh / 2 + h * 0.06, dw, dh);
+
+  c.font = "600 " + (fr * 0.052) + "px ui-sans-serif, Arial, sans-serif";
+  c.fillStyle = "rgba(200,212,192,0.55)";
+  c.textAlign = "center"; c.textBaseline = "middle";
+  c.fillText("GEAR", cx, cy - h * 0.33);
+
+  // stall / cranking tell-tale, just above the LCD
+  if (!state.running) {
+    c.font = "700 " + (fr * 0.06) + "px ui-sans-serif, Arial, sans-serif";
+    c.fillStyle = state.starterT > 0 ? "#B07A10" : CONFIG.color.needle;
+    c.fillText(state.starterT > 0 ? "CRANKING" : "STALLED  ·  E TO START", cx, cy - h * 0.82);
+  }
+}
+
+/* --------------------------------------------------------------- SHIFT LEDs */
+function drawShiftLeds(c) {
+  const { cx, cy, R } = TACH;
+  const n = CONFIG.leds.count;
+  const rLed = R + 20;
+  const spanDeg = 78;
+  const flashing = state.ledFlash > 0 && (Math.floor(state.ledFlash * 20) % 2 === 0);
+
+  for (let i = 0; i < n; i++) {
+    const t = n === 1 ? 0.5 : i / (n - 1);
+    const ang = (-90 - spanDeg / 2 + t * spanDeg) * DEG;
+    const x = cx + Math.cos(ang) * rLed;
+    const y = cy + Math.sin(ang) * rLed;
+
+    let col = CONFIG.color.ledOff, glow = 0;
+    if (flashing) { col = CONFIG.color.ledRed; glow = 14; }
+    else if (state.rpm >= CONFIG.leds.redFrom) { col = CONFIG.color.ledRed; glow = 14; }
+    else if (state.rpm >= CONFIG.leds.amberFrom) {
+      const span = CONFIG.leds.redFrom - CONFIG.leds.amberFrom;
+      const lit = (state.rpm - CONFIG.leds.amberFrom) / span;
+      if (lit >= (i + 0.001) / n) { col = CONFIG.color.ledAmber; glow = 12; }
+    }
+
+    c.save();
+    c.fillStyle = "#0C0C0C";
+    c.beginPath(); c.arc(x, y, 6.6, 0, TAU); c.fill();
+    c.lineWidth = 1.2; c.strokeStyle = "#4A4D50";
+    c.beginPath(); c.arc(x, y, 6.6, 0, TAU); c.stroke();
+    if (glow) { c.shadowColor = col; c.shadowBlur = glow; }
+    c.fillStyle = col;
+    c.beginPath(); c.arc(x, y, 4.4, 0, TAU); c.fill();
+    c.restore();
+
+    if (glow) {
+      c.fillStyle = "rgba(255,255,255,0.55)";
+      c.beginPath(); c.arc(x - 1.2, y - 1.4, 1.3, 0, TAU); c.fill();
+    }
+  }
+}
+
+/* ------------------------------------------------------------------ NEEDLES */
+function drawNeedle(c, cx, cy, fr, theta) {
+  c.save();
+  c.translate(cx, cy);
+  c.rotate(theta);
+  const len = fr * 0.90, tail = fr * 0.20, wHub = fr * 0.042, wTip = fr * 0.011;
+  c.shadowColor = "rgba(0,0,0,0.35)"; c.shadowBlur = 5; c.shadowOffsetX = 2; c.shadowOffsetY = 2;
+  c.beginPath();
+  c.moveTo(-tail, -wHub * 0.62); c.lineTo(0, -wHub); c.lineTo(len, -wTip);
+  c.lineTo(len + wTip, 0); c.lineTo(len, wTip); c.lineTo(0, wHub); c.lineTo(-tail, wHub * 0.62);
+  c.closePath();
+  c.fillStyle = CONFIG.color.needle; c.fill();
+  c.shadowColor = "transparent";
+  c.beginPath();
+  c.moveTo(0, -wHub * 0.55); c.lineTo(len, -wTip * 0.5); c.lineTo(len, 0); c.lineTo(0, 0);
+  c.closePath();
+  c.fillStyle = "rgba(255,255,255,0.14)"; c.fill();
+  c.restore();
+
+  const hr = fr * 0.10;
+  const g = c.createRadialGradient(cx - hr * 0.4, cy - hr * 0.5, hr * 0.1, cx, cy, hr);
+  g.addColorStop(0, "#FFFFFF"); g.addColorStop(0.45, "#C9CBCC");
+  g.addColorStop(0.8, "#7C7F82"); g.addColorStop(1, "#4A4D50");
+  c.fillStyle = g;
+  c.beginPath(); c.arc(cx, cy, hr, 0, TAU); c.fill();
+  c.strokeStyle = "rgba(0,0,0,0.45)"; c.lineWidth = 1;
+  c.beginPath(); c.arc(cx, cy, hr, 0, TAU); c.stroke();
+}
+
+function render(alpha) {
+  ctx.drawImage(staticLayer, 0, 0, LOGICAL_W, LOGICAL_H);
+  drawTachoLcd(ctx);
+  const tTheta = state.tachPrev + (state.tachTheta - state.tachPrev) * alpha;
+  const sTheta = state.speedPrev + (state.speedTheta - state.speedPrev) * alpha;
+  drawNeedle(ctx, TACH.cx, TACH.cy, faceR(TACH.R), tTheta);
+  drawNeedle(ctx, SPEED.cx, SPEED.cy, faceR(SPEED.R), sTheta);
+  drawShiftLeds(ctx);
+}
+
+/* ============================== TWEAK PANEL =============================== */
+function populateCrankOptions(cylinders) {
+  const sel = document.getElementById("in-crank");
+  sel.innerHTML = "";
+  for (const o of LAYOUTS[cylinders]) {
+    const opt = document.createElement("option");
+    opt.value = o.angleDeg; opt.textContent = o.label;
+    sel.appendChild(opt);
+  }
+}
+
+function drawCurve(m) {
+  const cv = document.getElementById("curve");
+  const cx = cv.getContext("2d");
+  const W = cv.width, H = cv.height;
+  cx.clearRect(0, 0, W, H);
+  cx.strokeStyle = "rgba(255,255,255,0.08)"; cx.lineWidth = 1;
+  for (let i = 1; i < 4; i++) { const y = H * i / 4; cx.beginPath(); cx.moveTo(0, y); cx.lineTo(W, y); cx.stroke(); }
+  const N = 100, torquePts = [], powerPts = [];
+  for (let i = 0; i <= N; i++) {
+    const rpm = m.limiter * i / N;
+    const t = T_wot(rpm);
+    const p = t * TAU * rpm / 60 / 1000;
+    torquePts.push(m.peakTorqueNm > 0 ? t / m.peakTorqueNm : 0);
+    powerPts.push(m.peakPowerKw > 0 ? p / m.peakPowerKw : 0);
+  }
+  function plot(pts, color) {
+    cx.strokeStyle = color; cx.lineWidth = 3; cx.beginPath();
+    pts.forEach((v, i) => {
+      const x = W * i / N, y = H - v * H * 0.90 - H * 0.05;
+      if (i === 0) cx.moveTo(x, y); else cx.lineTo(x, y);
+    });
+    cx.stroke();
+  }
+  plot(torquePts, "#C0392B");
+  plot(powerPts, "#8FA8C7");
+}
+
+function updateTweakPanel(m, dt, layout) {
+  const inp = CONFIG.inputs, S = CONFIG.sound;
+  document.getElementById("in-cyl").value = inp.cylinders;
+  document.getElementById("in-disp").value = inp.displacementCc;
+  document.getElementById("in-bsr").value = inp.boreStrokeRatio;
+  document.getElementById("in-imep").value = inp.peakImepBar;
+  document.getElementById("in-mpsin").value = inp.maxPistonSpeed;
+  document.getElementById("in-exhaust").value = S.exhaust;
+  document.getElementById("in-listener").value = S.listener;
+  document.getElementById("in-pops").checked = S.pops;
+  document.getElementById("in-vol").value = S.volume;
+  document.getElementById("in-clutch").value = CONFIG.engine.clutchOutSec;
+  document.getElementById("out-vol").textContent = Math.round(S.volume * 100 / 1.6) + "%";
+  document.getElementById("out-clutch").textContent = CONFIG.engine.clutchOutSec.toFixed(2) + " s";
+
+  populateCrankOptions(inp.cylinders);
+  document.getElementById("in-crank").value = inp.crankAngleDeg;
+
+  document.getElementById("out-disp").textContent = inp.displacementCc + " cc";
+  document.getElementById("out-bsr").textContent = inp.boreStrokeRatio.toFixed(2);
+  document.getElementById("out-imep").textContent = inp.peakImepBar.toFixed(1) + " bar";
+  document.getElementById("out-mps-in").textContent = inp.maxPistonSpeed.toFixed(1) + " m/s";
+
+  document.getElementById("out-bore").textContent = m.boreMm.toFixed(1) + " x " + m.strokeMm.toFixed(1) + " mm";
+  document.getElementById("out-redline").textContent = m.redline.toLocaleString() + " rpm";
+  document.getElementById("out-limiter").textContent = m.limiter.toLocaleString() + " rpm";
+  document.getElementById("out-idle").textContent = m.idleRpm.toLocaleString() + " rpm";
+  document.getElementById("out-peakT").textContent = m.peakTorqueNm.toFixed(1) + " Nm @ " + m.peakTorqueRpm.toLocaleString();
+  document.getElementById("out-peakP").textContent =
+    (m.peakPowerKw / 0.7355).toFixed(1) + " PS (" + m.peakPowerKw.toFixed(1) + " kW) @ " + m.peakPowerRpm.toLocaleString();
+  document.getElementById("out-mpsredline").textContent = m.mpsAtRedline.toFixed(1) + " m/s";
+  document.getElementById("out-inertia").textContent = m.inertia.toFixed(4) + " kg m²";
+  document.getElementById("out-vterm").textContent = (dt.vTerminal * 3.6).toFixed(0) + " km/h";
+
+  document.getElementById("out-gears").textContent = dt.gears
+    .map((r, i) => `Gear ${i + 1}:  ${r.toFixed(2)}  ->  ${dt.kmhAtLimiter[i].toFixed(0)} km/h @ limiter`)
+    .join("\n");
+  drawCurve(m);
+}
+
+function wireTweakPanel() {
+  const $ = id => document.getElementById(id);
+  const num = (id, fn) => $(id).addEventListener("input", () => { fn(+$(id).value); rebuildModel(); });
+  num("in-disp",  v => CONFIG.inputs.displacementCc = v);
+  num("in-bsr",   v => CONFIG.inputs.boreStrokeRatio = v);
+  num("in-imep",  v => CONFIG.inputs.peakImepBar = v);
+  num("in-mpsin", v => CONFIG.inputs.maxPistonSpeed = v);
+  $("in-cyl").addEventListener("change", () => { CONFIG.inputs.cylinders = +$("in-cyl").value; rebuildModel(); });
+  $("in-crank").addEventListener("change", () => { CONFIG.inputs.crankAngleDeg = +$("in-crank").value; rebuildModel(); });
+
+  // sound + rider settings don't rebuild the model or reset the ride
+  $("in-exhaust").addEventListener("change", () => { CONFIG.sound.exhaust = $("in-exhaust").value; ensureAudio(); audioSet(soundConfigMsg()); });
+  $("in-listener").addEventListener("change", () => { CONFIG.sound.listener = $("in-listener").value; ensureAudio(); audioSet(soundConfigMsg()); });
+  $("in-pops").addEventListener("change", () => { CONFIG.sound.pops = $("in-pops").checked; audioSet(soundConfigMsg()); });
+  $("in-vol").addEventListener("input", () => {
+    CONFIG.sound.volume = +$("in-vol").value;
+    $("out-vol").textContent = Math.round(CONFIG.sound.volume * 100 / 1.6) + "%";
+    audioSet(soundConfigMsg());
+  });
+  $("in-clutch").addEventListener("input", () => {
+    CONFIG.engine.clutchOutSec = +$("in-clutch").value;
+    $("out-clutch").textContent = CONFIG.engine.clutchOutSec.toFixed(2) + " s";
+  });
+
+  document.querySelectorAll(".presets button").forEach(btn => {
+    btn.addEventListener("click", () => { Object.assign(CONFIG.inputs, PRESETS[btn.dataset.preset]); rebuildModel(); });
+  });
+  $("btn-mute").addEventListener("click", () => { ensureAudio(); toggleMute(); });
+}
+
+function toggleTweakPanel() { document.getElementById("tweak").classList.toggle("open"); }
+
+/* =============================== LOOP =================================== */
+let lastTime = performance.now();
+let accumulator = 0;
+
+function frame(now) {
+  let frameTime = (now - lastTime) / 1000;
+  lastTime = now;
+  if (!(frameTime >= 0)) frameTime = 0;                                   // clock went backwards / NaN
+  if (frameTime > CONFIG.loop.maxAccum) frameTime = CONFIG.loop.maxAccum;
+  accumulator += frameTime;
+  while (accumulator >= CONFIG.loop.fixedDt) {
+    physicsStep(CONFIG.loop.fixedDt);
+    accumulator -= CONFIG.loop.fixedDt;
+  }
+  pushAudioState();
+  render(accumulator / CONFIG.loop.fixedDt);
+  requestAnimationFrame(frame);
+}
+
+/* ============================== CONTROLS ================================ */
+const held = new Set();
+const WATCHED = new Set(["w", "q", "n", "m", "r", "e", "shift", "t", "a"]);
+const keyName = e => e.key === "Shift" ? "shift" : (e.key || "").toLowerCase();
+
+function applyThrottleKeys() {
+  state.thrTarget = held.has("w") ? 1 : held.has("q") ? 0.3 : 0;
+}
+
+window.addEventListener("keydown", e => {
+  const k = keyName(e);
+  ensureAudio();
+  const tag = e.target && e.target.tagName;
+  if ((tag === "INPUT" || tag === "SELECT" || tag === "BUTTON") && k !== "t") return;
+  if (!WATCHED.has(k)) return;
+  e.preventDefault();
+  if (e.repeat || held.has(k)) return;
+  held.add(k);
+
+  if (k === "w" || k === "q") applyThrottleKeys();
+  else if (k === "shift") state.clutchKey = true;
+  else if (k === "n") upshift();
+  else if (k === "m") downshift();
+  else if (k === "e") startEngine();
+  else if (k === "r") resetSim();
+  else if (k === "t") toggleTweakPanel();
+  else if (k === "a") toggleMute();
+});
+
+window.addEventListener("keyup", e => {
+  const k = keyName(e);
+  if (!WATCHED.has(k)) return;
+  held.delete(k);                                 // always release, even if focus moved into the panel
+  if (k === "w" || k === "q") applyThrottleKeys();
+  else if (k === "shift") state.clutchKey = false;
+});
+
+window.addEventListener("blur", () => {           // never leave throttle stuck open
+  held.clear();
+  state.thrTarget = 0;
+  state.clutchKey = false;
+});
+
+canvas.addEventListener("pointerdown", () => { canvas.focus(); ensureAudio(); });
+window.addEventListener("load", () => { try { window.focus(); canvas.focus(); } catch (e) {} });
+
+/* =============================== BOOT =================================== */
+window.addEventListener("resize", resize);
+if (window.matchMedia) {
+  const mq = window.matchMedia("(resolution: " + (window.devicePixelRatio || 1) + "dppx)");
+  if (mq.addEventListener) mq.addEventListener("change", resize);
+}
+wireTweakPanel();
+rebuildModel();
+resize();
+canvas.focus();
+requestAnimationFrame(frame);
+
+</script>
+</body>
+</html>
