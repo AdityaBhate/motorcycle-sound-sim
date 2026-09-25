@@ -36,6 +36,16 @@
   }
   @media (prefers-reduced-motion: reduce) { .tweak { transition: none; } }
   .tweak.open { transform: translateX(0); }
+  .tweak.left { right: auto; left: 0; border-left: none; border-right: 1px solid rgba(255,255,255,0.08); transform: translateX(-100%); }
+  .tweak.left.open { transform: translateX(0); }
+  .tweak button.bike { display: block; width: 100%; text-align: left; margin: 5px 0; padding: 7px 10px; }
+  .tweak .bike .t { display: flex; justify-content: space-between; gap: 8px; color: #F2F0E9; }
+  .tweak .bike .t span:last-child { color: #9A9A96; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .tweak .bike .s { color: #8A8A86; font-size: 11px; margin-top: 2px; line-height: 1.35; }
+  .tweak .based { color: #B8B8B4; font-size: 12px; margin: -4px 0 10px; }
+  .tweak .based:empty { display: none; }
+  .tweak .based b { color: #F2F0E9; font-weight: 600; }
+  .tweak .based i { color: #E0A040; font-style: normal; }
   .tweak h2 { font-size: 15px; margin: 0 0 12px; color: #F2F0E9; font-weight: 600; }
   .tweak h3 { font-size: 11px; margin: 18px 0 8px; color: #9A9A96; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
   .tweak label { display: block; margin: 10px 0; }
@@ -78,10 +88,18 @@
 <body>
 <canvas id="pods" tabindex="0" aria-label="Tachometer and speedometer"></canvas>
 
-<div class="hint">W throttle &nbsp;·&nbsp; Q part throttle &nbsp;·&nbsp; Shift clutch &nbsp;·&nbsp; N/M gears &nbsp;·&nbsp; E start &nbsp;·&nbsp; T tweak &nbsp;·&nbsp; A mute</div>
+<div class="hint">W throttle &nbsp;·&nbsp; Q part throttle &nbsp;·&nbsp; Shift clutch &nbsp;·&nbsp; N/M gears &nbsp;·&nbsp; E start &nbsp;·&nbsp; P presets &nbsp;·&nbsp; T tweak &nbsp;·&nbsp; A mute</div>
+
+<div class="tweak left" id="presets-panel">
+  <h2>Presets</h2>
+  <input type="text" id="preset-filter" placeholder="Filter: triple, 650, ducati, single..." spellcheck="false" autocomplete="off" aria-label="Filter presets">
+  <div class="note">Published specs: bore x stroke, compression, firing layout, redline, torque and power peaks, weight, tyre, gearbox. VE is calibrated on load so peak torque matches the brochure; exhaust lengths are estimates. Pick a bike, then press T to see or change anything.</div>
+  <div id="preset-list"></div>
+</div>
 
 <div class="tweak" id="tweak">
   <h2>Engine Tuner</h2>
+  <div class="based" id="out-based"></div>
   <div class="presets">
     <button data-preset="single">Single</button>
     <button data-preset="twin">Twin</button>
@@ -93,7 +111,7 @@
     <button id="btn-paste">Paste config</button>
     <button id="btn-defaults">Defaults</button>
   </div>
-  <div class="note">Type in the spec sheet: bore, stroke, compression, firing layout, redline and where torque and power peak. Then set VE until the derived peak torque matches the brochure. Settings are saved in this browser; Copy/Paste moves a bike as JSON.</div>
+  <div class="note">Type in the spec sheet: bore, stroke, compression, firing layout, redline and where torque and power peak. Then set VE until the derived peak torque matches the brochure, and the knee until peak power does (or start from a bike in Presets, P). Settings are saved in this browser; Copy/Paste moves a bike as JSON.</div>
   <div class="warn" id="out-warn"></div>
 
   <h3>Engine</h3>
@@ -114,6 +132,7 @@
   </label>
   <div class="note">Crank degrees between successive firings, one per cylinder, summing to 720. E.g. 90° V-twin: 270, 450 · crossplane I4: 270, 180, 90, 180.</div>
   <div id="f-engine"></div>
+  <div class="note">Top-end knee: how torque dies past its peak. Low = fades early and gently (touring cams), high = holds on then drops hard (race cams). Presets fit it to the brochure power.</div>
   <label>Valvetrain
     <select id="in-valve">
       <option value="dohc">DOHC (bucket / finger)</option>
@@ -292,6 +311,7 @@ const CONFIG = {
     cylinders: 2, firing: [180, 540],           // crank degrees between successive firings, sum 720
     boreMm: 70.0, strokeMm: 45.4, compression: 11.5,
     peakVE: 85,                                  // % volumetric efficiency at the torque peak
+    falloffK: 3.0,                               // top-end knee: low = torque fades early, high = holds then drops hard
     torqueRpm: 10000, powerRpm: 12000,           // where the brochure says torque / power peak
     redline: 12500, idleRpm: 1000,
     valvetrain: "dohc", cooling: "liquid"
@@ -302,6 +322,8 @@ const CONFIG = {
     gearCount: 6, gearRatios: "",                // empty = auto ladder
     primary: 2.0, sprocketF: 15, sprocketR: 45   // only used with explicit gear ratios
   },
+
+  preset: { name: "", snap: "" },               // which Presets entry this config started from
 
   sound: {
     exhaust: "stock", collector: "merged", headerMm: 520, linkMm: 450, intake: "airbox",
@@ -351,6 +373,74 @@ const PRESETS = {
 
 const BODY_CDA = { naked: 0.45, sport: 0.32, classic: 0.55, adv: 0.55 };   // m², bike + rider
 
+/* ============================== BIKE PRESETS ==============================
+   Published spec-sheet data only: bore x stroke, compression, firing layout, the
+   brochure torque/power figures and where they peak, redline, wet weight, rear tyre,
+   gearbox, valvetrain, cooling. VE is NOT stored: it is calibrated on load so the
+   model's peak torque matches the brochure. Exhaust geometry [header layout, header
+   mm, link mm] is an estimate from each bike's pipe routing. Everything becomes
+   ordinary tweak-panel values, so a preset is just a starting point.
+   l: layout id (sets cylinders + firing), k: engine description, nm/ps: [value, rpm] */
+const BIKES = [
+  { group: "Superbikes: 1000 cc+ fours", bikes: [
+    { n: "Ducati Panigale V4",     k: "90° V4, twin pulse",     l: "v4-tp", b: 81,   s: 53.5, cr: 14.0,  nm: [123.6, 9500],  ps: [215.5, 13000], red: 13800, idle: 1300, kg: 196, t: "200/60-17", body: "sport", g: 6, vt: "dohc", cool: "liquid", ex: ["pairs", 420, 450] },
+    { n: "Aprilia RSV4 1100",      k: "65° V4",                 l: "v4-65", b: 81,   s: 53.3, cr: 13.6,  nm: [125, 10500],   ps: [217, 13000],   red: 13200, idle: 1300, kg: 202, t: "200/55-17", body: "sport", g: 6, vt: "dohc", cool: "liquid", ex: ["pairs", 450, 350] },
+    { n: "Honda CBR1000RR-R",      k: "Inline four, flat-plane", l: "even", b: 81,   s: 48.5, cr: 13.6,  nm: [113, 12500],   ps: [218, 14500],   red: 14800, idle: 1300, kg: 201, t: "200/55-17", body: "sport", g: 6, vt: "dohc", cool: "liquid", ex: ["pairs", 420, 500] },
+    { n: "BMW S 1000 RR",          k: "Inline four, flat-plane", l: "even", b: 80,   s: 49.7, cr: 13.3,  nm: [113, 11000],   ps: [210, 13750],   red: 14300, idle: 1250, kg: 197, t: "190/55-17", body: "sport", g: 6, vt: "dohc", cool: "liquid", ex: ["pairs", 430, 550] },
+    { n: "Suzuki GSX-R1000R",      k: "Inline four, flat-plane", l: "even", b: 76,   s: 55.1, cr: 13.2,  nm: [117.6, 10800], ps: [202, 13200],   red: 13500, idle: 1200, kg: 203, t: "190/55-17", body: "sport", g: 6, vt: "dohc", cool: "liquid", ex: ["pairs", 450, 600] },
+    { n: "Yamaha YZF-R1",          k: "Inline four, crossplane", l: "cross", b: 79,  s: 50.9, cr: 13.0,  nm: [113, 11500],   ps: [200, 13500],   red: 13800, idle: 1300, kg: 201, t: "190/55-17", body: "sport", g: 6, vt: "dohc", cool: "liquid", ex: ["pairs", 450, 550] },
+    { n: "Kawasaki ZX-10R",        k: "Inline four, flat-plane", l: "even", b: 76,   s: 55,   cr: 13.0,  nm: [114.9, 11400], ps: [203, 13200],   red: 13500, idle: 1150, kg: 207, t: "190/55-17", body: "sport", g: 6, vt: "dohc", cool: "liquid", ex: ["pairs", 450, 600] }
+  ]},
+  { group: "Middleweight & small fours", bikes: [
+    { n: "Honda VFR800F",          k: "90° V4, 360° crank",     l: "v4-360", b: 72,  s: 48,   cr: 11.8,  nm: [75, 8500],     ps: [106, 10250],   red: 11500, idle: 1200, kg: 242, t: "180/55-17", body: "adv",   g: 6, vt: "dohc", cool: "liquid", ex: ["pairs", 500, 600] },
+    { n: "Honda CB650R",           k: "Inline four, 4-into-1",  l: "even",  b: 67,   s: 46,   cr: 11.6,  nm: [64, 8500],     ps: [95, 12000],    red: 12500, idle: 1200, kg: 203, t: "180/55-17", body: "naked", g: 6, vt: "dohc", cool: "liquid", ex: ["merged", 600, 250] },
+    { n: "Kawasaki ZX-6R 636",     k: "Inline four, flat-plane", l: "even", b: 67,   s: 45.1, cr: 12.9,  nm: [70.8, 11000],  ps: [130, 13500],   red: 15500, idle: 1300, kg: 197, t: "180/55-17", body: "sport", g: 6, vt: "dohc", cool: "liquid", ex: ["pairs", 480, 500] },
+    { n: "Kawasaki ZX-4RR",        k: "Inline four, 400 cc screamer", l: "even", b: 57, s: 39.1, cr: 12.3, nm: [39, 13000],   ps: [77, 14500],    red: 16000, idle: 1400, kg: 189, t: "160/60-17", body: "sport", g: 6, vt: "dohc", cool: "liquid", ex: ["pairs", 450, 500] }
+  ]},
+  { group: "Triples", bikes: [
+    { n: "Triumph Speed Triple 1200 RS", k: "Inline triple, 120°", l: "i120", b: 90, s: 60.8, cr: 13.2, nm: [125, 9000],     ps: [180, 10750],   red: 11000, idle: 1150, kg: 198, t: "190/55-17", body: "naked", g: 6, vt: "dohc", cool: "liquid", ex: ["merged", 500, 300] },
+    { n: "Yamaha MT-09",           k: "Inline triple, 120°",    l: "i120",  b: 78,   s: 62.1, cr: 11.5,  nm: [93, 7000],     ps: [119, 10000],   red: 11000, idle: 1150, kg: 189, t: "180/55-17", body: "naked", g: 6, vt: "dohc", cool: "liquid", ex: ["merged", 500, 250] },
+    { n: "Triumph Tiger 900",      k: "Inline triple, T-plane", l: "tplane", b: 78,  s: 61.9, cr: 13.0,  nm: [90, 6850],     ps: [108, 9500],    red: 10000, idle: 1100, kg: 219, t: "150/70-17", body: "adv",   g: 6, vt: "dohc", cool: "liquid", ex: ["merged", 550, 500] },
+    { n: "Triumph Street Triple 765 RS", k: "Inline triple, 120°", l: "i120", b: 78, s: 53.4, cr: 13.25, nm: [80, 9500],      ps: [130, 12000],   red: 12500, idle: 1200, kg: 188, t: "180/55-17", body: "naked", g: 6, vt: "dohc", cool: "liquid", ex: ["merged", 480, 250] },
+    { n: "Triumph Trident 660",    k: "Inline triple, 120°",    l: "i120",  b: 74,   s: 51.1, cr: 11.95, nm: [64, 6250],     ps: [81, 10250],    red: 11000, idle: 1200, kg: 189, t: "180/55-17", body: "naked", g: 6, vt: "dohc", cool: "liquid", ex: ["merged", 520, 300] }
+  ]},
+  { group: "Sport twins", bikes: [
+    { n: "Ducati Panigale V2 (955)", k: "90° V-twin",           l: "p270",  b: 100,  s: 60.8, cr: 12.5,  nm: [104, 9000],    ps: [155, 10750],   red: 11500, idle: 1300, kg: 200, t: "180/60-17", body: "sport", g: 6, vt: "dohc", cool: "liquid", ex: ["merged", 600, 300] },
+    { n: "Ducati Monster 937",     k: "90° V-twin",             l: "p270",  b: 94,   s: 67.5, cr: 13.3,  nm: [93, 6500],     ps: [111, 9250],    red: 10500, idle: 1300, kg: 188, t: "180/55-17", body: "naked", g: 6, vt: "dohc", cool: "liquid", ex: ["merged", 600, 350] },
+    { n: "KTM 890 Duke R",         k: "Parallel twin, 285°",    l: "p285",  b: 90.7, s: 68.8, cr: 13.5,  nm: [99, 7750],     ps: [121, 9250],    red: 10000, idle: 1350, kg: 186, t: "180/55-17", body: "naked", g: 6, vt: "dohc", cool: "liquid", ex: ["merged", 650, 250] },
+    { n: "Yamaha MT-07",           k: "Parallel twin, 270°",    l: "p270",  b: 80,   s: 68.6, cr: 11.5,  nm: [67, 6500],     ps: [73.4, 8750],   red: 10000, idle: 1250, kg: 184, t: "180/55-17", body: "naked", g: 6, vt: "dohc", cool: "liquid", ex: ["merged", 650, 300] },
+    { n: "Kawasaki Ninja 650",     k: "Parallel twin, 180°",    l: "p180",  b: 83,   s: 60,   cr: 10.8,  nm: [64, 6700],     ps: [68, 8000],     red: 10500, idle: 1300, kg: 193, t: "160/60-17", body: "sport", g: 6, vt: "dohc", cool: "liquid", ex: ["merged", 650, 350] },
+    { n: "Kawasaki Ninja 400",     k: "Parallel twin, 180°",    l: "p180",  b: 70,   s: 51.8, cr: 11.5,  nm: [38, 8000],     ps: [45, 10000],    red: 12000, idle: 1300, kg: 168, t: "150/60-17", body: "sport", g: 6, vt: "dohc", cool: "liquid", ex: ["merged", 600, 400] },
+    { n: "Yamaha YZF-R3",          k: "Parallel twin, 180°",    l: "p180",  b: 68,   s: 44.1, cr: 11.2,  nm: [29.6, 9000],   ps: [42, 10750],    red: 12500, idle: 1400, kg: 169, t: "140/70-17", body: "sport", g: 6, vt: "dohc", cool: "liquid", ex: ["merged", 600, 400] }
+  ]},
+  { group: "Relaxed twins, classics & cruisers", bikes: [
+    { n: "Harley-Davidson Street Bob 114", k: "45° V-twin, pushrod", l: "v45", b: 102, s: 114.3, cr: 10.5, nm: [155, 3000],   ps: [95, 4750],     red: 5500,  idle: 850,  kg: 297, t: "150/80-16", body: "classic", g: 6, vt: "pushrod", cool: "air", ex: ["separate", 800, 700] },
+    { n: "BMW R 1250 GS",          k: "Boxer twin, 360°",       l: "p360",  b: 102.5, s: 76,  cr: 12.5,  nm: [143, 6250],    ps: [136, 7750],    red: 9000,  idle: 1050, kg: 249, t: "170/60-17", body: "adv",   g: 6, vt: "dohc", cool: "liquid", ex: ["merged", 700, 600] },
+    { n: "Triumph Bonneville T120", k: "Parallel twin, 270°",   l: "p270",  b: 97.6, s: 80,   cr: 10.0,  nm: [105, 3500],    ps: [80, 6550],     red: 7000,  idle: 900,  kg: 236, t: "150/70-17", body: "classic", g: 6, vt: "sohc", cool: "liquid", ex: ["separate", 800, 500] },
+    { n: "Royal Enfield Interceptor 650", k: "Parallel twin, 270°", l: "p270", b: 78, s: 67.8, cr: 9.5,  nm: [52, 5150],     ps: [47, 7150],     red: 7500,  idle: 1100, kg: 218, t: "130/70-18", body: "classic", g: 6, vt: "sohc", cool: "air", ex: ["separate", 800, 550] }
+  ]},
+  { group: "Singles: revvers", bikes: [
+    { n: "KTM 690 Duke",           k: "Big single, LC4",        l: "single", b: 105, s: 80,   cr: 12.8,  nm: [74, 6500],     ps: [73, 8000],     red: 8500,  idle: 1300, kg: 160, t: "160/60-17", body: "naked", g: 6, vt: "sohc", cool: "liquid", ex: ["separate", 800, 400] },
+    { n: "KTM 390 Duke (2024)",    k: "Single, DOHC",           l: "single", b: 89,  s: 64,   cr: 12.6,  nm: [39, 7000],     ps: [45, 8500],     red: 10000, idle: 1300, kg: 165, t: "150/60-17", body: "naked", g: 6, vt: "dohc", cool: "liquid", ex: ["separate", 750, 300] },
+    { n: "TVS Apache RR 310",      k: "Single, reverse-inclined", l: "single", b: 80, s: 62.1, cr: 10.9,  nm: [27.3, 7700],   ps: [34, 9700],     red: 10500, idle: 1300, kg: 174, t: "150/60-17", body: "sport", g: 6, vt: "dohc", cool: "liquid", ex: ["separate", 750, 350] },
+    { n: "Yamaha R15 V4",          k: "Single, SOHC 4-valve VVA", l: "single", b: 58, s: 58.7, cr: 11.6,  nm: [14.2, 7500],   ps: [18.4, 10000],  red: 11000, idle: 1400, kg: 142, t: "140/70-17", body: "sport", g: 6, vt: "sohc", cool: "liquid", ex: ["separate", 650, 350] }
+  ]},
+  { group: "Singles: thumpers", bikes: [
+    { n: "Royal Enfield Himalayan 450", k: "Single, Sherpa 450", l: "single", b: 84,  s: 81.5, cr: 11.5,  nm: [40, 5500],     ps: [40, 8000],     red: 9000,  idle: 1200, kg: 196, t: "140/80-17", body: "adv",   g: 6, vt: "dohc", cool: "liquid", ex: ["separate", 900, 400] },
+    { n: "Royal Enfield Bullet 350", k: "Long-stroke single, J-series", l: "single", b: 72, s: 85.8, cr: 9.5, nm: [27, 4000],  ps: [20.2, 6100],   red: 6500,  idle: 950,  kg: 195, t: "120/80-18", body: "classic", g: 5, vt: "sohc", cool: "air", ex: ["separate", 1150, 350] },
+    { n: "Royal Enfield Classic 350", k: "Long-stroke single, J-series", l: "single", b: 72, s: 85.8, cr: 9.5, nm: [27, 4000], ps: [20.2, 6100],   red: 6500,  idle: 950,  kg: 195, t: "120/80-18", body: "classic", g: 5, vt: "sohc", cool: "air", ex: ["separate", 1100, 400] },
+    { n: "Royal Enfield Hunter 350", k: "Long-stroke single, J-series", l: "single", b: 72, s: 85.8, cr: 9.5, nm: [27, 4000],  ps: [20.2, 6100],   red: 6500,  idle: 950,  kg: 181, t: "140/70-17", body: "naked", g: 5, vt: "sohc", cool: "air", ex: ["separate", 900, 300] },
+    { n: "Honda H'ness CB350",     k: "Long-stroke single",     l: "single", b: 70,  s: 90.5, cr: 9.5,   nm: [30, 3000],     ps: [21, 5500],     red: 6000,  idle: 950,  kg: 181, t: "130/70-18", body: "classic", g: 5, vt: "sohc", cool: "air", ex: ["separate", 1100, 350] }
+  ]}
+];
+
+function layoutById(id) {
+  for (const n of [1, 2, 3, 4]) { const o = LAYOUTS[n].find(x => x.id === id); if (o) return { n, o }; }
+  return { n: 1, o: LAYOUTS[1][0] };
+}
+const bikeCc = bk => layoutById(bk.l).n * Math.PI / 4 * bk.b * bk.b * bk.s / 1000;
+
+
 // non-linear tacho: knots (× redline) -> needle fraction; the dial max is appended per build
 const TACHO_N = [0.00, 0.17, 0.33, 0.50, 0.67, 0.75, 0.83, 0.92, 1.00];
 const TACHO_F = [0.00, 0.06, 0.13, 0.22, 0.38, 0.50, 0.64, 0.78, 0.90, 1.00];
@@ -378,7 +468,7 @@ const fracToAngle = f => (CONFIG.sweep.startDeg + f * CONFIG.sweep.spanDeg) * DE
 /* ------------------------------------------------------------- ENGINE MAPS */
 const MODEL = {
   cylinders: 2, strokeM: 0.0454, vdM3: 349e-6,
-  imepPeak: 12.2, tpk: 10000, bHi: 1.0, redline: 12500, limiter: 13100,
+  imepPeak: 12.2, tpk: 10000, bHi: 1.0, kHi: 3.0, redline: 12500, limiter: 13100,
   mass: 243, peakTorqueNm: 30
 };
 const MEP_TO_NM = () => 1e5 * MODEL.vdM3 / (4 * Math.PI);        // 4-stroke: one power stroke per 2 revs
@@ -397,14 +487,14 @@ function FMEP(rpm) {
   return 0.60 + 0.055 * mps + 0.12 * (MODEL.cylinders - 2);
 }
 /** Breathing: VE relative to its peak. Rises parabolically from ~50% at zero; above the
-    peak it holds flat, then drops at a knee (cubic), like real dyno curves. The drop rate
-    is fitted so brake power peaks where the spec sheet says (mild cams fall off early,
-    race tunes hold on). */
+    peak it falls as d^k (d = fraction past the peak). k is the knee: low k fades early and
+    gently, high k holds on then drops hard. The drop rate b is fitted so brake power peaks
+    where the spec sheet says. */
 function veShape(rpm) {
   const x = Math.abs(rpm) / MODEL.tpk;
   if (x < 1) return 1 - 0.5 * (1 - x) * (1 - x);
   const d = x - 1;
-  return Math.max(0.15, 1 - MODEL.bHi * d * d * d);
+  return Math.max(0.15, 1 - MODEL.bHi * Math.pow(d, MODEL.kHi));
 }
 function IMEP(rpm) { return MODEL.imepPeak * veShape(rpm); }
 /** WOT brake torque (for the curve/peak scan). */
@@ -441,8 +531,8 @@ function torquePeakRpm() {
 }
 /** Bisect the post-peak VE falloff so the brake-power peak lands on targetRpm. */
 function fitFalloff(targetRpm) {
-  let lo = 0.005, hi = 20;
-  for (let i = 0; i < 34; i++) {
+  let lo = 1e-3, hi = 1e5;
+  for (let i = 0; i < 40; i++) {
     MODEL.bHi = Math.sqrt(lo * hi);
     if (powerPeakRpm() > targetRpm) lo = MODEL.bHi; else hi = MODEL.bHi;
   }
@@ -467,6 +557,7 @@ function buildEngineModel(inp) {
   MODEL.cylinders = n; MODEL.strokeM = strokeM; MODEL.vdM3 = vdM3;
   MODEL.imepPeak = ETA_OTTO_FRAC * ottoEff(inp.compression) * Q_CHARGE_BAR * inp.peakVE / 100;
   MODEL.tpk = tpk; MODEL.redline = redline; MODEL.limiter = limiter;
+  MODEL.kHi = clamp(inp.falloffK || 3, 0.8, 6);
   // friction rises with rpm, so brake torque peaks earlier than breathing does: walk the
   // breathing peak until the BRAKE torque peak sits on the spec rpm
   for (let it = 0; it < 8; it++) {
@@ -1674,7 +1765,8 @@ const NUM_FIELDS = {
     ["idleRpm",     "Idle",                    "rpm", 600, 2000, 25],
     ["torqueRpm",   "Peak torque at",          "rpm", 1500, 16000, 50],
     ["powerRpm",    "Peak power at",           "rpm", 2000, 18000, 50],
-    ["peakVE",      "Volumetric efficiency",   "%",   60, 125, 0.5]
+    ["peakVE",      "Volumetric efficiency",   "%",   40, 125, 0.1],
+    ["falloffK",    "Top-end knee",            "",    0.8, 6, 0.05]
   ]},
   "f-exhaust": { obj: () => CONFIG.sound, kind: "sound", rows: [
     ["headerMm",    "Header (primary) length", "mm",  150, 1600, 10],
@@ -1813,13 +1905,20 @@ function updateTweakPanel(m, dt) {
   const warn = m.warn.concat(PANEL_WARN);
   if (!parseTire(C.tire)) warn.push("Tyre size not understood; using 150/60-17.");
   $("out-warn").textContent = warn.join("\n");
+  const based = $("out-based"), pn = CONFIG.preset.name;
+  based.innerHTML = "";
+  if (pn) {
+    based.append("Based on ");
+    const b = document.createElement("b"); b.textContent = pn; based.append(b);
+    if (presetSnap() !== CONFIG.preset.snap) { const i = document.createElement("i"); i.textContent = " · modified"; based.append(i); }
+  }
   drawCurve(m);
 }
 
 /* ---- config persistence: autosave in this browser, copy/paste as JSON */
 const STORE_KEY = "pods.bikeConfig.v2";
 function exportConfig() {
-  return { version: 2, engine: CONFIG.inputs, chassis: CONFIG.chassis, sound: CONFIG.sound,
+  return { version: 2, preset: CONFIG.preset, engine: CONFIG.inputs, chassis: CONFIG.chassis, sound: CONFIG.sound,
            rider: { clutchOutSec: CONFIG.engine.clutchOutSec } };
 }
 /** Copy only known keys with matching types, so a bad paste can't break the model. */
@@ -1837,6 +1936,9 @@ function importConfig(o) {
   merge(CONFIG.inputs, o.engine);
   merge(CONFIG.chassis, o.chassis);
   merge(CONFIG.sound, o.sound);
+  CONFIG.preset = { name: "", snap: "" };
+  if (o.preset && typeof o.preset.name === "string" && typeof o.preset.snap === "string") CONFIG.preset = { name: o.preset.name, snap: o.preset.snap };
+  ACTIVE_BIKE = CONFIG.preset.name;
   if (o.rider && isFinite(o.rider.clutchOutSec)) CONFIG.engine.clutchOutSec = clamp(+o.rider.clutchOutSec, 0.15, 1.5);
   const inp = CONFIG.inputs;
   inp.cylinders = clamp(Math.round(inp.cylinders), 1, 4);
@@ -1908,6 +2010,7 @@ function wireTweakPanel() {
     btn.addEventListener("click", () => {
       const pr = PRESETS[btn.dataset.preset];
       Object.assign(CONFIG.inputs, pr, { firing: pr.firing.slice() });
+      CONFIG.preset = { name: "", snap: "" }; ACTIVE_BIKE = ""; renderPresetList();
       if (pr.cylinders !== 4 && CONFIG.sound.collector === "pairs") CONFIG.sound.collector = "merged";
       PANEL_WARN = [];
       soundOnly();
@@ -1946,6 +2049,102 @@ function flashButton(btn, text) {
 
 function toggleTweakPanel() { document.getElementById("tweak").classList.toggle("open"); }
 
+/* ============================== PRESETS PANEL ============================= */
+let ACTIVE_BIKE = "";
+
+/** Solve VE so the model's peak brake torque equals the brochure figure (secant; torque is ~linear in VE). */
+function calibrateVE(targetNm) {
+  const inp = CONFIG.inputs;
+  const T = ve => { inp.peakVE = ve; return buildEngineModel(inp).peakTorqueNm; };
+  let a = 85, b = 105, ta = T(a), tb = T(b);
+  for (let i = 0; i < 5 && Math.abs(tb - targetNm) > 0.05; i++) {
+    const c = clamp(b + (targetNm - tb) * (b - a) / ((tb - ta) || 1e-9), 40, 125);
+    a = b; ta = tb; b = c; tb = T(b);
+  }
+  return Math.round(b * 10) / 10;
+}
+
+/** The parts of the config a preset sets (not rider weight, listener, volume...). */
+function presetSnap() {
+  const C = CONFIG.chassis, S = CONFIG.sound;
+  return JSON.stringify([CONFIG.inputs, C.bikeKg, C.body, C.tire, C.gearCount, C.gearRatios,
+                         S.exhaust, S.collector, S.headerMm, S.linkMm, S.intake]);
+}
+
+/** Knee k for brochure power: a softer knee (lower k) bleeds torque before the power
+    peak, so peak power rises monotonically with k. */
+function calibrateKnee(targetPs) {
+  const inp = CONFIG.inputs;
+  const P = k => { inp.falloffK = k; return buildEngineModel(inp).peakPowerKw / 0.7355; };
+  let lo = 0.8, hi = 6;
+  if (P(lo) >= targetPs) return lo;
+  if (P(hi) <= targetPs) return hi;
+  for (let i = 0; i < 14; i++) { const mid = (lo + hi) / 2; if (P(mid) < targetPs) lo = mid; else hi = mid; }
+  return Math.round((lo + hi) / 2 * 20) / 20;
+}
+
+function applyBike(bk) {
+  const { n, o } = layoutById(bk.l);
+  Object.assign(CONFIG.inputs, {
+    cylinders: n, firing: o.intervals.slice(), boreMm: bk.b, strokeMm: bk.s, compression: bk.cr,
+    torqueRpm: bk.nm[1], powerRpm: bk.ps[1], redline: bk.red, idleRpm: bk.idle,
+    valvetrain: bk.vt, cooling: bk.cool
+  });
+  Object.assign(CONFIG.chassis, { bikeKg: bk.kg, body: bk.body, tire: bk.t, gearCount: bk.g, gearRatios: "" });
+  Object.assign(CONFIG.sound, { exhaust: "stock", collector: bk.ex[0], headerMm: bk.ex[1], linkMm: bk.ex[2], intake: "airbox" });
+  // torque sets VE, power sets the knee; they interact a little, so alternate twice
+  CONFIG.inputs.falloffK = 3;
+  for (let r = 0; r < 2; r++) {
+    CONFIG.inputs.peakVE = calibrateVE(bk.nm[0]);
+    CONFIG.inputs.falloffK = calibrateKnee(bk.ps[0]);
+  }
+  CONFIG.inputs.peakVE = calibrateVE(bk.nm[0]);
+  PANEL_WARN = [];
+  if (CONFIG.inputs.peakVE >= 125) PANEL_WARN.push("VE hit its 125% ceiling; this model can't quite reach the brochure torque.");
+  CONFIG.preset = { name: bk.n, snap: presetSnap() };
+  ACTIVE_BIKE = bk.n;
+  ensureAudio();
+  audioSet(soundConfigMsg());
+  rebuildModel();
+  renderPresetList();
+}
+
+function renderPresetList() {
+  const box = document.getElementById("preset-list");
+  const q = document.getElementById("preset-filter").value.trim().toLowerCase();
+  box.innerHTML = "";
+  let shown = 0;
+  for (const g of BIKES) {
+    const items = g.bikes.filter(bk => {
+      if (!q) return true;
+      const hay = (bk.n + " " + bk.k + " " + g.group + " " + Math.round(bikeCc(bk)) + "cc").toLowerCase();
+      return q.split(/\s+/).every(w => hay.includes(w));
+    });
+    if (!items.length) continue;
+    const h = document.createElement("h3");
+    h.textContent = g.group;
+    box.appendChild(h);
+    for (const bk of items) {
+      const btn = document.createElement("button");
+      btn.className = "bike" + (bk.n === ACTIVE_BIKE ? " active" : "");
+      btn.innerHTML = `<div class="t"><span></span><span>${Math.round(bikeCc(bk))} cc</span></div><div class="s"></div>`;
+      btn.querySelector(".t span").textContent = bk.n;
+      btn.querySelector(".s").textContent = `${bk.k} · ${bk.ps[0]} PS @ ${bk.ps[1].toLocaleString()} · ${bk.nm[0]} Nm @ ${bk.nm[1].toLocaleString()}`;
+      btn.addEventListener("click", () => applyBike(bk));
+      box.appendChild(btn);
+      shown++;
+    }
+  }
+  if (!shown) box.innerHTML = '<div class="note">No bikes match.</div>';
+}
+
+function wirePresetPanel() {
+  document.getElementById("preset-filter").addEventListener("input", renderPresetList);
+  renderPresetList();
+}
+
+function togglePresetPanel() { document.getElementById("presets-panel").classList.toggle("open"); }
+
 /* =============================== LOOP =================================== */
 let lastTime = performance.now();
 let accumulator = 0;
@@ -1967,7 +2166,7 @@ function frame(now) {
 
 /* ============================== CONTROLS ================================ */
 const held = new Set();
-const WATCHED = new Set(["w", "q", "n", "m", "r", "e", "shift", "t", "a"]);
+const WATCHED = new Set(["w", "q", "n", "m", "r", "e", "shift", "t", "a", "p"]);
 const keyName = e => e.key === "Shift" ? "shift" : (e.key || "").toLowerCase();
 
 function applyThrottleKeys() {
@@ -1979,7 +2178,7 @@ window.addEventListener("keydown", e => {
   ensureAudio();
   const tag = e.target && e.target.tagName;
   if (tag === "INPUT" && (e.target.type === "text" || e.target.type === "number")) return;   // typing a spec, not riding
-  if ((tag === "INPUT" || tag === "SELECT" || tag === "BUTTON") && k !== "t") return;
+  if ((tag === "INPUT" || tag === "SELECT" || tag === "BUTTON") && k !== "t" && k !== "p") return;
   if (!WATCHED.has(k)) return;
   e.preventDefault();
   if (e.repeat || held.has(k)) return;
@@ -1992,6 +2191,7 @@ window.addEventListener("keydown", e => {
   else if (k === "e") startEngine();
   else if (k === "r") resetSim();
   else if (k === "t") toggleTweakPanel();
+  else if (k === "p") togglePresetPanel();
   else if (k === "a") toggleMute();
 });
 
@@ -2020,6 +2220,7 @@ if (window.matchMedia) {
 }
 wireTweakPanel();
 loadSavedConfig();
+wirePresetPanel();
 rebuildModel();
 resize();
 canvas.focus();

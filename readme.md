@@ -5,7 +5,7 @@ A single-file, no-dependency simulation of a motorcycle tach + speedo, with a fr
 Open `index.html` in a browser. Everything — physics, audio DSP, rendering — is vanilla JS + Canvas 2D + Web Audio.
 
 ## Controls
-`W` throttle · `Q` part throttle · `Shift` clutch · `N`/`M` shift up/down · `E` start · `T` tweak panel · `A` mute
+`W` throttle · `Q` part throttle · `Shift` clutch · `N`/`M` shift up/down · `E` start · `P` presets · `T` tweak panel · `A` mute
 
 ## Tech stack
 - Vanilla HTML/CSS/JS, single file, zero build step, zero dependencies
@@ -16,7 +16,7 @@ Open `index.html` in a browser. Everything — physics, audio DSP, rendering —
 ## Engine model (the math)
 - **Spec-sheet inputs**: bore, stroke, cylinders, firing intervals, compression ratio, redline, idle, peak-torque rpm, peak-power rpm, volumetric efficiency; displacement is derived (`Vd = n·π/4·B²·S`)
 - **IMEP from first principles**: `IMEP = η_i(CR) · VE · ρ_air·LHV/AFR` (≈35 bar of charge energy at 100% VE); `η_i = 0.78 · (1 − CR^−0.3)` (Otto cycle, γ≈1.3, derated for heat loss/finite burn)
-- **Breathing curve**: VE rises parabolically to its peak, then drops at a cubic knee; the knee rate and the breathing-peak rpm are fitted by bisection so the *brake* torque and power peaks land on the spec-sheet rpm
+- **Breathing curve**: VE rises parabolically to its peak, then falls as `1 − b·dᵏ` past it. The knee exponent `k` is an input (soft touring cams ↔ hard race cams); `b` and the breathing-peak rpm are fitted by bisection so the *brake* torque and power peaks land on the spec-sheet rpm
 - **Torque from mean effective pressure**: `T = (IMEP − FMEP) · Vd / (4π)` — standard 4-stroke MEP-to-torque conversion
 - **FMEP** (friction) scales with mean piston speed: `FMEP = 0.60 + 0.055·mps + 0.12·(cyl − 2)`
 - **Pumping losses** scale with throttle position (manifold vacuum at closed throttle)
@@ -47,6 +47,9 @@ No recorded samples — the exhaust note is synthesized from a physical model:
 ## Tunable parameters
 All live in the tweak panel (`T`), grouped as Engine, Exhaust & intake, Sound, Chassis & gearing and Rider. Spec values have a number box for exact entry plus a slider. Sound-only settings (silencer, header/link length, header layout, intake, valvetrain, cooling, listener) retune the audio without resetting the ride.
 
-To simulate a real bike: type in its spec sheet (bore, stroke, compression, cylinders + firing layout, redline, the rpm where torque and power peak), then nudge **VE** until the derived peak torque matches the brochure. Tested against published figures: Bullet 350, Duke 390, Street Triple 765 RS and R1 land within ~2–7% on power and torque at the right rpm.
+To simulate any engine (real, rare or imaginary): type in its spec sheet (bore, stroke, compression, cylinders + firing layout, redline, the rpm where torque and power peak), then nudge **VE** until the derived peak torque matches and the **top-end knee** until peak power does. Or start from a preset and change what you like.
+
+## Presets (`P`)
+36 popular bikes, grouped: 1000 cc+ superbike fours and V4s, middleweight/small fours, triples, sport twins, relaxed twins/classics/cruisers, revving singles and thumpers (filterable). Each stores only published data: bore × stroke, compression, firing layout, brochure torque/power and where they peak, redline, wet weight, rear tyre, gearbox, valvetrain, cooling, plus estimated exhaust geometry. On load, VE is calibrated to the brochure torque and the knee to the brochure power, so all 36 match their brochures (torque exactly, power within 2%, at the right rpm). Everything lands in the tweak panel as normal values, marked "Based on X · modified" once you change something: turn a Bullet into a 400 or a twin, swap the silencer, etc.
 
 Settings autosave in the browser. **Copy config / Paste config** move a bike around as JSON, so you can keep your own library. The Single/Twin/Triple/Four buttons are generic 349 cc starting points.
