@@ -61,6 +61,15 @@
   .tweak .derived div span:last-child { color: #F2F0E9; font-variant-numeric: tabular-nums; }
   .tweak .gears { font-variant-numeric: tabular-nums; color: #B8B8B4; white-space: pre-line; }
   .tweak .note { color: #8A8A86; font-size: 11px; line-height: 1.45; margin-top: 4px; }
+  .tweak .warn { color: #E0A040; font-size: 11px; line-height: 1.45; margin-top: 6px; white-space: pre-line; }
+  .tweak .warn:empty { display: none; }
+  .tweak input[type="text"], .tweak input[type="number"] {
+    background: #1B1C1D; color: #F2F0E9; border: 1px solid #3A3A3A; border-radius: 4px;
+    padding: 4px 6px; font: inherit; font-variant-numeric: tabular-nums;
+  }
+  .tweak input[type="text"] { width: 100%; }
+  .tweak input[type="number"] { width: 78px; text-align: right; padding: 2px 4px; }
+  .tweak .unit { color: #8A8A86; font-size: 11px; margin-left: 4px; display: inline-block; min-width: 22px; }
   .tweak canvas#curve { width: 100%; height: 110px; margin-top: 10px; background: #0E0F10; border-radius: 4px; }
   .hint { position: fixed; left: 12px; bottom: calc(10px + env(safe-area-inset-bottom, 0px));
     color: rgba(216,216,213,0.45); font: 11px ui-sans-serif, Arial, sans-serif; letter-spacing: 0.02em; }
@@ -74,19 +83,76 @@
 <div class="tweak" id="tweak">
   <h2>Engine Tuner</h2>
   <div class="presets">
+    <button data-preset="single">Single</button>
     <button data-preset="twin">Twin</button>
     <button data-preset="triple">Triple</button>
     <button data-preset="four">Four</button>
   </div>
+  <div class="presets">
+    <button id="btn-copy">Copy config</button>
+    <button id="btn-paste">Paste config</button>
+    <button id="btn-defaults">Defaults</button>
+  </div>
+  <div class="note">Type in the spec sheet: bore, stroke, compression, firing layout, redline and where torque and power peak. Then set VE until the derived peak torque matches the brochure. Settings are saved in this browser; Copy/Paste moves a bike as JSON.</div>
+  <div class="warn" id="out-warn"></div>
 
-  <h3>Sound</h3>
-  <label>Exhaust
-    <select id="in-exhaust">
-      <option value="stock">Stock silencer</option>
-      <option value="slipon">Slip-on (packed, no cat)</option>
-      <option value="open">Open header</option>
+  <h3>Engine</h3>
+  <label>Cylinders
+    <select id="in-cyl">
+      <option value="1">1</option>
+      <option value="2">2</option>
+      <option value="3">3</option>
+      <option value="4">4</option>
     </select>
   </label>
+  <label>Crank / firing layout
+    <select id="in-crank"></select>
+  </label>
+  <label>
+    <div class="row"><span>Firing intervals (° crank)</span></div>
+    <input type="text" id="in-firing" spellcheck="false" autocomplete="off">
+  </label>
+  <div class="note">Crank degrees between successive firings, one per cylinder, summing to 720. E.g. 90° V-twin: 270, 450 · crossplane I4: 270, 180, 90, 180.</div>
+  <div id="f-engine"></div>
+  <label>Valvetrain
+    <select id="in-valve">
+      <option value="dohc">DOHC (bucket / finger)</option>
+      <option value="sohc">SOHC (rockers)</option>
+      <option value="pushrod">Pushrod (OHV, tappets)</option>
+    </select>
+  </label>
+  <label>Cooling
+    <select id="in-cool">
+      <option value="liquid">Liquid-cooled</option>
+      <option value="air">Air / oil-cooled (finned)</option>
+    </select>
+  </label>
+
+  <h3>Exhaust &amp; intake</h3>
+  <label>Silencer
+    <select id="in-exhaust">
+      <option value="stock">Stock (chambered, cat)</option>
+      <option value="slipon">Slip-on (straight-through, packed)</option>
+      <option value="open">Open / straight pipe</option>
+    </select>
+  </label>
+  <label>Header layout
+    <select id="in-collector">
+      <option value="merged">All into one collector (2-1 / 3-1 / 4-1)</option>
+      <option value="pairs">4-2-1 (paired by firing order)</option>
+      <option value="separate">Separate pipe per cylinder</option>
+    </select>
+  </label>
+  <div id="f-exhaust"></div>
+  <label>Intake
+    <select id="in-intake">
+      <option value="airbox">Stock airbox</option>
+      <option value="pod">Pod / open filter</option>
+      <option value="stacks">Velocity stacks</option>
+    </select>
+  </label>
+
+  <h3>Sound</h3>
   <label>Listening position
     <select id="in-listener">
       <option value="rider">On the bike (rider)</option>
@@ -104,6 +170,33 @@
     <button id="btn-mute">Mute</button>
   </div>
 
+  <h3>Chassis &amp; gearing</h3>
+  <label>Body / riding position
+    <select id="in-body">
+      <option value="naked">Naked, upright</option>
+      <option value="sport">Faired sportbike, tucked</option>
+      <option value="classic">Classic / cruiser, upright</option>
+      <option value="adv">Adventure / touring, screen</option>
+    </select>
+  </label>
+  <label>
+    <div class="row"><span>Rear tyre</span></div>
+    <input type="text" id="in-tire" spellcheck="false" autocomplete="off" placeholder="150/60-17">
+  </label>
+  <div id="f-chassis"></div>
+  <label>Gears (auto ladder)
+    <select id="in-gearcount">
+      <option value="4">4</option>
+      <option value="5">5</option>
+      <option value="6">6</option>
+    </select>
+  </label>
+  <label>
+    <div class="row"><span>Gearbox ratios (optional)</span></div>
+    <input type="text" id="in-gears" spellcheck="false" autocomplete="off" placeholder="e.g. 2.62, 1.88, 1.52, 1.30, 1.17, 1.05">
+  </label>
+  <div class="note">Leave the ratios empty to auto-build a ladder whose top gear lands peak power at top speed. Once you enter ratios, the primary reduction and sprockets are used too.</div>
+
   <h3>Rider</h3>
   <label>
     <div class="row"><span>Clutch release time</span><span id="out-clutch"></span></div>
@@ -111,45 +204,19 @@
   </label>
   <div class="note">Hold Shift to pull the clutch; releasing lets it out over this time. Dump it without revs and the engine stalls. Press E (in neutral or with the clutch pulled) to restart.</div>
 
-  <h3>Inputs</h3>
-  <label>Cylinders
-    <select id="in-cyl">
-      <option value="2">2</option>
-      <option value="3">3</option>
-      <option value="4">4</option>
-    </select>
-  </label>
-  <label>Crank angle
-    <select id="in-crank"></select>
-  </label>
-  <label>
-    <div class="row"><span>Displacement</span><span id="out-disp"></span></div>
-    <input type="range" id="in-disp" min="150" max="1200" step="1">
-  </label>
-  <label>
-    <div class="row"><span>Bore / stroke ratio</span><span id="out-bsr"></span></div>
-    <input type="range" id="in-bsr" min="1.00" max="1.80" step="0.01">
-  </label>
-  <label>
-    <div class="row"><span>Peak IMEP</span><span id="out-imep"></span></div>
-    <input type="range" id="in-imep" min="10.0" max="14.0" step="0.1">
-  </label>
-  <label>
-    <div class="row"><span>Max piston speed</span><span id="out-mps-in"></span></div>
-    <input type="range" id="in-mpsin" min="16.0" max="21.0" step="0.1">
-  </label>
-
   <h3>Derived</h3>
   <div class="derived">
-    <div><span>Bore x stroke</span><span id="out-bore"></span></div>
-    <div><span>Redline</span><span id="out-redline"></span></div>
+    <div><span>Displacement</span><span id="out-disp"></span></div>
+    <div><span>Bore / stroke</span><span id="out-bsr"></span></div>
+    <div><span>MPS @ redline</span><span id="out-mpsredline"></span></div>
     <div><span>Limiter</span><span id="out-limiter"></span></div>
-    <div><span>Idle</span><span id="out-idle"></span></div>
+    <div><span>Peak IMEP / BMEP</span><span id="out-mep"></span></div>
     <div><span>Peak torque</span><span id="out-peakT"></span></div>
     <div><span>Peak power</span><span id="out-peakP"></span></div>
-    <div><span>MPS @ redline</span><span id="out-mpsredline"></span></div>
+    <div><span>Firing freq @ idle / redline</span><span id="out-fire"></span></div>
     <div><span>Crank inertia</span><span id="out-inertia"></span></div>
-    <div><span>Terminal velocity</span><span id="out-vterm"></span></div>
+    <div><span>Mass (with rider)</span><span id="out-mass"></span></div>
+    <div><span>Top speed</span><span id="out-vterm"></span></div>
     <div><span>Audio engine</span><span id="out-audio">not started</span></div>
   </div>
   <div class="gears" id="out-gears"></div>
@@ -217,15 +284,29 @@ const CONFIG = {
     downCutSec: 0.080          // auto-blip downshift window
   },
 
-  // CdA 0.45 m²: naked bike + upright rider (0.32 was a tucked supersport)
+  // mass / CdA are derived from CONFIG.chassis on every rebuild
   vehicle: { mass: 243, CdA: 0.45, rho: 1.225, crr: 0.018, g: 9.81 },
 
+  // ---- spec-sheet inputs (tweak panel, T). Everything else is derived from these.
   inputs: {
-    cylinders: 2, displacementCc: 349, boreStrokeRatio: 1.55,
-    peakImepBar: 12.2, maxPistonSpeed: 19.0, crankAngleDeg: 180
+    cylinders: 2, firing: [180, 540],           // crank degrees between successive firings, sum 720
+    boreMm: 70.0, strokeMm: 45.4, compression: 11.5,
+    peakVE: 85,                                  // % volumetric efficiency at the torque peak
+    torqueRpm: 10000, powerRpm: 12000,           // where the brochure says torque / power peak
+    redline: 12500, idleRpm: 1000,
+    valvetrain: "dohc", cooling: "liquid"
   },
 
-  sound: { exhaust: "stock", listener: "rider", pops: true, volume: 1.6 },
+  chassis: {
+    bikeKg: 168, riderKg: 75, body: "naked", tire: "150/60-17",
+    gearCount: 6, gearRatios: "",                // empty = auto ladder
+    primary: 2.0, sprocketF: 15, sprocketR: 45   // only used with explicit gear ratios
+  },
+
+  sound: {
+    exhaust: "stock", collector: "merged", headerMm: 520, linkMm: 450, intake: "airbox",
+    listener: "rider", pops: true, volume: 1.6
+  },
 
   needle: { tach: { wn: 38, zeta: 0.72 }, speed: { wn: 16, zeta: 0.95 } },
 
@@ -234,24 +315,44 @@ const CONFIG = {
   leds: { count: 5, amberFrom: 11000, redFrom: 11800, flashSec: 0.30 }
 };
 
+/* Firing layouts: crank degrees between successive firings (720° cycle). Parallel
+   twins and V-twins with a shared crankpin collapse onto the same interval pattern:
+   a 270° parallel twin fires exactly like a 90° V-twin. */
 const LAYOUTS = {
+  1: [ { id: "single", intervals: [720], label: "Single (one bang every 720°)" } ],
   2: [
-    { angleDeg: 180, intervals: [180, 540], label: "180°  (thin, screaming)" },
-    { angleDeg: 270, intervals: [270, 450], label: "270°  (offbeat, V-twin-like)" },
-    { angleDeg: 360, intervals: [360, 360], label: "360°  (even, British twin)" }
+    { id: "p180", intervals: [180, 540], label: "Parallel, 180° crank" },
+    { id: "p270", intervals: [270, 450], label: "Parallel 270° / 90° V-twin" },
+    { id: "p285", intervals: [285, 435], label: "Parallel 285° / 75° V-twin" },
+    { id: "v60",  intervals: [300, 420], label: "60° V-twin" },
+    { id: "v45",  intervals: [315, 405], label: "45° V-twin, shared pin" },
+    { id: "p360", intervals: [360, 360], label: "Parallel, 360° crank" }
   ],
-  3: [ { angleDeg: 120, intervals: [240, 240, 240], label: "120°  (even, triple howl)" } ],
-  4: [ { angleDeg: 180, intervals: [180, 180, 180, 180], label: "180°" } ]
+  3: [
+    { id: "i120",   intervals: [240, 240, 240], label: "Inline, 120° crank (even)" },
+    { id: "tplane", intervals: [180, 270, 270], label: "Inline, T-plane crank" }
+  ],
+  4: [
+    { id: "even",  intervals: [180, 180, 180, 180], label: "Flat-plane I4 / 180° V4 (even)" },
+    { id: "cross", intervals: [270, 180, 90, 180],  label: "Crossplane I4" },
+    { id: "v4-360", intervals: [180, 270, 180, 90], label: "90° V4, 360° crank" },
+    { id: "v4-65", intervals: [180, 115, 180, 245], label: "65° V4, 180° crank" },
+    { id: "v4-tp", intervals: [90, 200, 90, 340],   label: "90° V4, 70° offset pins (twin pulse)" }
+  ]
 };
 
+/* Generic starting points (all ~349 cc). Real bikes: type in their spec sheet. */
 const PRESETS = {
-  twin:   { cylinders: 2, displacementCc: 349, boreStrokeRatio: 1.55, peakImepBar: 12.2, maxPistonSpeed: 19.0, crankAngleDeg: 180 },
-  triple: { cylinders: 3, displacementCc: 349, boreStrokeRatio: 1.55, peakImepBar: 12.2, maxPistonSpeed: 19.0, crankAngleDeg: 120 },
-  four:   { cylinders: 4, displacementCc: 349, boreStrokeRatio: 1.55, peakImepBar: 12.2, maxPistonSpeed: 19.0, crankAngleDeg: 180 }
+  single: { cylinders: 1, firing: [720],                boreMm: 80.0, strokeMm: 69.4, compression: 11.0, peakVE: 88, torqueRpm: 6500,  powerRpm: 7800,  redline: 8000,  idleRpm: 900 },
+  twin:   { cylinders: 2, firing: [180, 540],           boreMm: 70.0, strokeMm: 45.4, compression: 11.5, peakVE: 85, torqueRpm: 10000, powerRpm: 12000, redline: 12500, idleRpm: 1000 },
+  triple: { cylinders: 3, firing: [240, 240, 240],      boreMm: 61.2, strokeMm: 39.5, compression: 12.0, peakVE: 85, torqueRpm: 11500, powerRpm: 13500, redline: 14000, idleRpm: 1050 },
+  four:   { cylinders: 4, firing: [180, 180, 180, 180], boreMm: 55.6, strokeMm: 35.9, compression: 12.5, peakVE: 85, torqueRpm: 12500, powerRpm: 15000, redline: 15500, idleRpm: 1100 }
 };
 
-const BREATH_N = [0.00, 0.17, 0.33, 0.50, 0.67, 0.75, 0.83, 0.92, 1.00, 1.08];
-const BREATH_SHAPE = [0.50, 0.57, 0.68, 0.80, 0.90, 0.95, 1.00, 0.98, 0.93, 0.80];
+const BODY_CDA = { naked: 0.45, sport: 0.32, classic: 0.55, adv: 0.55 };   // m², bike + rider
+
+// non-linear tacho: knots (× redline) -> needle fraction; the dial max is appended per build
+const TACHO_N = [0.00, 0.17, 0.33, 0.50, 0.67, 0.75, 0.83, 0.92, 1.00];
 const TACHO_F = [0.00, 0.06, 0.13, 0.22, 0.38, 0.50, 0.64, 0.78, 0.90, 1.00];
 
 /* ------------------------------------------------------------------ UTIL */
@@ -276,17 +377,36 @@ const fracToAngle = f => (CONFIG.sweep.startDeg + f * CONFIG.sweep.spanDeg) * DE
 
 /* ------------------------------------------------------------- ENGINE MAPS */
 const MODEL = {
-  cylinders: 2, boreMm: 70, strokeMm: 45, strokeM: 0.045,
-  vdM3: 349e-6, peakImepBar: 12.2, redline: 12500, limiter: 13300,
+  cylinders: 2, strokeM: 0.0454, vdM3: 349e-6,
+  imepPeak: 12.2, tpk: 10000, bHi: 1.0, redline: 12500, limiter: 13100,
   mass: 243, peakTorqueNm: 30
 };
 const MEP_TO_NM = () => 1e5 * MODEL.vdM3 / (4 * Math.PI);        // 4-stroke: one power stroke per 2 revs
+
+/* IMEP from first principles: heat released by one swept volume of stoichiometric
+   charge (ρ_air·LHV/AFR ≈ 35 bar at 100% VE) × indicated efficiency. Indicated
+   efficiency follows the ideal Otto cycle (γ≈1.3 for hot burned gas) derated for
+   heat loss, finite burn time and blow-by. Compression ratio therefore sets how much
+   work each gram of air makes; VE sets how many grams get in. */
+const Q_CHARGE_BAR = 1.18 * 44e6 / 14.7 / 1e5;
+const ETA_OTTO_FRAC = 0.78;
+const ottoEff = cr => 1 - Math.pow(cr, -0.3);
 
 function FMEP(rpm) {
   const mps = 2 * MODEL.strokeM * Math.abs(rpm) / 60;
   return 0.60 + 0.055 * mps + 0.12 * (MODEL.cylinders - 2);
 }
-function IMEP(rpm) { return MODEL.peakImepBar * lerpTable(BREATH_N, BREATH_SHAPE, rpm / MODEL.redline); }
+/** Breathing: VE relative to its peak. Rises parabolically from ~50% at zero; above the
+    peak it holds flat, then drops at a knee (cubic), like real dyno curves. The drop rate
+    is fitted so brake power peaks where the spec sheet says (mild cams fall off early,
+    race tunes hold on). */
+function veShape(rpm) {
+  const x = Math.abs(rpm) / MODEL.tpk;
+  if (x < 1) return 1 - 0.5 * (1 - x) * (1 - x);
+  const d = x - 1;
+  return Math.max(0.15, 1 - MODEL.bHi * d * d * d);
+}
+function IMEP(rpm) { return MODEL.imepPeak * veShape(rpm); }
 /** WOT brake torque (for the curve/peak scan). */
 const T_wot = rpm => Math.max(0, IMEP(rpm) - FMEP(rpm)) * MEP_TO_NM();
 /** Net crank torque. load 0..1 = throttle (trapped charge). Pumping loss grows as the throttle closes. */
@@ -306,22 +426,55 @@ function niceStep(target, steps) {
   return best;
 }
 
+function powerPeakRpm() {
+  let best = 0, bestRpm = MODEL.tpk;
+  for (let rpm = MODEL.tpk; rpm <= MODEL.limiter * 1.3; rpm += 25) {
+    const p = T_wot(rpm) * rpm;
+    if (p > best) { best = p; bestRpm = rpm; }
+  }
+  return bestRpm;
+}
+function torquePeakRpm() {
+  let best = 0, bestRpm = 0;
+  for (let rpm = 500; rpm <= MODEL.limiter; rpm += 25) { const t = T_wot(rpm); if (t > best) { best = t; bestRpm = rpm; } }
+  return bestRpm;
+}
+/** Bisect the post-peak VE falloff so the brake-power peak lands on targetRpm. */
+function fitFalloff(targetRpm) {
+  let lo = 0.005, hi = 20;
+  for (let i = 0; i < 34; i++) {
+    MODEL.bHi = Math.sqrt(lo * hi);
+    if (powerPeakRpm() > targetRpm) lo = MODEL.bHi; else hi = MODEL.bHi;
+  }
+  MODEL.bHi = Math.sqrt(lo * hi);
+}
+
 function buildEngineModel(inp) {
-  const vPercylCc = inp.displacementCc / inp.cylinders;
-  const boreMm = Math.cbrt(vPercylCc * 1000 * 4 * inp.boreStrokeRatio / Math.PI);
-  const strokeMm = boreMm / inp.boreStrokeRatio;
-  const strokeM = strokeMm / 1000;
-
-  const redline = Math.floor((inp.maxPistonSpeed * 30 / strokeM) / 500) * 500;
-  const limiter = redline + 800;
+  const n = inp.cylinders, boreMm = inp.boreMm, strokeMm = inp.strokeMm, strokeM = strokeMm / 1000;
+  const vPercylCc = Math.PI / 4 * boreMm * boreMm * strokeMm / 1000;
+  const displacementCc = vPercylCc * n;
+  const redline = inp.redline;
+  const limiter = Math.round(redline * 1.05 / 100) * 100;
   const dialMax = Math.ceil(limiter / 1000) * 1000;
-  const vdM3 = inp.displacementCc * 1e-6;
+  const vdM3 = displacementCc * 1e-6;
+  const warn = [];
 
-  MODEL.cylinders = inp.cylinders;
-  MODEL.boreMm = boreMm; MODEL.strokeMm = strokeMm; MODEL.strokeM = strokeM;
-  MODEL.vdM3 = vdM3; MODEL.peakImepBar = inp.peakImepBar;
-  MODEL.redline = redline; MODEL.limiter = limiter;
-  MODEL.mass = 243 + 0.045 * (inp.displacementCc - 349);
+  const tpk = clamp(inp.torqueRpm, inp.idleRpm + 500, redline);
+  const ppk = clamp(inp.powerRpm, tpk, limiter * 1.2);
+  if (tpk !== inp.torqueRpm) warn.push("Peak-torque rpm held to " + tpk + " (between idle + 500 and redline).");
+  if (ppk !== inp.powerRpm) warn.push("Peak-power rpm held to " + Math.round(ppk) + " (must be at or above peak torque).");
+
+  MODEL.cylinders = n; MODEL.strokeM = strokeM; MODEL.vdM3 = vdM3;
+  MODEL.imepPeak = ETA_OTTO_FRAC * ottoEff(inp.compression) * Q_CHARGE_BAR * inp.peakVE / 100;
+  MODEL.tpk = tpk; MODEL.redline = redline; MODEL.limiter = limiter;
+  // friction rises with rpm, so brake torque peaks earlier than breathing does: walk the
+  // breathing peak until the BRAKE torque peak sits on the spec rpm
+  for (let it = 0; it < 8; it++) {
+    fitFalloff(ppk);
+    const err = tpk - torquePeakRpm();
+    if (Math.abs(err) < 30) break;
+    MODEL.tpk = clamp(MODEL.tpk + err, inp.idleRpm + 300, redline * 1.1);
+  }
 
   let peakTorqueNm = 0, peakTorqueRpm = 0, peakPowerKw = 0, peakPowerRpm = 0;
   for (let rpm = 1000; rpm <= limiter; rpm += 10) {
@@ -332,49 +485,76 @@ function buildEngineModel(inp) {
   }
   MODEL.peakTorqueNm = peakTorqueNm;
 
-  const inertia = 0.008 + 0.006 * inp.cylinders * Math.pow(vPercylCc / 174.3, 1.4);
-  const idleRpm = Math.round((550 + 0.035 * redline) / 50) * 50;
+  // singles carry a heavier flywheel: one power stroke per 720° has to coast through the other three
+  const flywheel = n === 1 ? 1.5 : 1;
+  const inertia = 0.008 + 0.006 * flywheel * n * Math.pow(vPercylCc / 174.3, 1.4);
   const mpsAtRedline = 2 * strokeM * redline / 60;
+  if (mpsAtRedline > 25) warn.push("Mean piston speed " + mpsAtRedline.toFixed(1) + " m/s at redline is beyond any production engine (~25 m/s max). Check stroke / redline.");
 
   return {
-    boreMm, strokeMm, strokeM, redline, limiter, dialMax, vdM3,
+    boreMm, strokeMm, strokeM, displacementCc, redline, limiter, dialMax, vdM3,
     peakTorqueNm, peakTorqueRpm, peakPowerKw, peakPowerRpm,
-    inertia, idleRpm, mpsAtRedline
+    imepPeak: MODEL.imepPeak, bmepPeak: peakTorqueNm * 4 * Math.PI / vdM3 / 1e5,
+    inertia, idleRpm: inp.idleRpm, mpsAtRedline, warn
   };
 }
 
-/** Terminal velocity (bisection), then a 6-speed geometric ladder whose TOP gear
-    puts peak-power rpm at terminal velocity (the power-matched top speed).
-    Previously 6th was pinned to the limiter, which the engine can never reach
-    because power at the limiter is below peak. */
-function buildDrivetrain(peakPowerKw, peakPowerRpm, limiter, mass) {
-  const V = CONFIG.vehicle, D = CONFIG.drive;
-  const pWheelMax = peakPowerKw * 1000 * D.eff;
+/** "150/60-17", "150/60ZR17", "120/80 R18" -> rolling circumference / radius (m). */
+function parseTire(s) {
+  const m = /(\d{2,3})\s*\/\s*(\d{2,3})\D*?(\d{2})\s*$/.exec(String(s || "").trim());
+  if (!m) return null;
+  const d = (+m[3] * 25.4 + 2 * (+m[1]) * (+m[2]) / 100) / 1000;
+  return d > 0.3 && d < 1.2 ? { circ: Math.PI * d, r: d / 2 } : null;
+}
 
-  let lo = 0, hi = 150;
-  for (let i = 0; i < 60; i++) {
-    const mid = (lo + hi) / 2;
-    const p = 0.5 * V.rho * V.CdA * mid ** 3 + V.crr * mass * V.g * mid;
-    if (p < pWheelMax) lo = mid; else hi = mid;
+function parseNums(s) {
+  return String(s || "").split(/[\s,;/]+/).filter(Boolean).map(Number).filter(v => isFinite(v) && v > 0);
+}
+
+/** Gearing: either the rider's gearbox (× primary × sprockets), or an auto geometric
+    ladder whose top gear puts peak-power rpm at terminal velocity. Top speed is then
+    the highest speed, in any gear and below the limiter, where wheel power beats drag. */
+function buildDrivetrain(m, mass) {
+  const V = CONFIG.vehicle, D = CONFIG.drive, C = CONFIG.chassis;
+  const drag = v => (0.5 * V.rho * V.CdA * v * v + V.crr * mass * V.g) * v;
+  const box = parseNums(C.gearRatios).filter(g => g < 6);
+  const manual = box.length >= 2;
+  let gears;
+  if (manual) {
+    const k = C.primary * C.sprocketR / C.sprocketF;
+    gears = box.slice(0, 8).map(g => g * k);
+  } else {
+    const pWheelMax = m.peakPowerKw * 1000 * D.eff;
+    let lo = 0, hi = 150;
+    for (let i = 0; i < 60; i++) { const mid = (lo + hi) / 2; if (drag(mid) < pWheelMax) lo = mid; else hi = mid; }
+    const vTerminal = (lo + hi) / 2;
+    const N = C.gearCount;
+    const overallTop = m.peakPowerRpm * D.rollCirc / (60 * vTerminal);
+    const spread = D.spread * Math.sqrt((N - 1) / 5);     // 1st / top, 2.9 for a 6-speed
+    const step = Math.pow(spread, 1 / (N - 1));
+    gears = [];
+    for (let i = 1; i <= N; i++) gears.push(overallTop * Math.pow(step, N - i));
   }
-  const vTerminal = (lo + hi) / 2;
-
-  const overallTop = peakPowerRpm * D.rollCirc / (60 * vTerminal);
-  const step = Math.pow(D.spread, 1 / 5);
-  const gears = [];
-  for (let i = 1; i <= 6; i++) gears.push(overallTop * Math.pow(step, 6 - i));
-  const kmhAtLimiter = gears.map(r => (limiter * D.rollCirc / (60 * r)) * 3.6);
-
-  return { vTerminal, gears, kmhAtLimiter };
+  let vTop = 0;
+  for (const G of gears) {
+    for (let v = 1; v < 150; v += 0.1) {
+      const rpm = v / D.rollCirc * 60 * G;
+      if (rpm > m.limiter) break;
+      if (T_wot(rpm) * rpm * TAU / 60 * D.eff >= drag(v) && v > vTop) vTop = v;
+    }
+  }
+  const kmhAtLimiter = gears.map(r => (m.limiter * D.rollCirc / (60 * r)) * 3.6);
+  return { vTerminal: vTop, gears, kmhAtLimiter, manual };
 }
 
 /** Tacho knots: breathing-curve points up to redline, then the LAST knot is the dial
     maximum. (The old table ended at 1.08*redline < dialMax, so the top of the dial
     collapsed onto one needle angle.) */
 function buildTachoScale(redline, dialMax) {
-  const mapRpm = BREATH_N.slice(0, 9).map(n => n * redline).concat([dialMax]);
+  const mapRpm = TACHO_N.map(n => n * redline).concat([dialMax]);
   const mapF = TACHO_F.slice();
-  const majorStep = niceStep(dialMax / 10, [500, 1000, 2000, 2500, 5000, 10000]);
+  // low-revving long-strokers (dial ~7000) still number in whole thousands
+  const majorStep = niceStep(dialMax / 10, dialMax >= 5000 ? [1000, 2000, 5000, 10000] : [500, 1000, 2000, 2500, 5000, 10000]);
   const minorStep = majorStep / 2;
   const minorFrom = Math.ceil((redline * 0.6) / majorStep) * majorStep;
   const labelAt = [];
@@ -383,45 +563,65 @@ function buildTachoScale(redline, dialMax) {
 }
 
 function buildSpeedoScale(vTerminalKmh) {
-  const maxKmh = Math.ceil((vTerminalKmh * 1.08) / 20) * 20;
+  const maxKmh = Math.max(100, Math.ceil((vTerminalKmh * 1.08) / 20) * 20);
   const majorStep = maxKmh > 260 ? 40 : 20;
   return { maxKmh, majorStep, minorStep: majorStep / 2 };
 }
 
+/** Intervals must be one per cylinder and sum to 720; rescale if they don't. */
+function normalizeFiring(arr, n) {
+  const v = Array.isArray(arr) ? arr.map(Number).filter(x => isFinite(x) && x > 0) : [];
+  if (v.length !== n) return LAYOUTS[n][0].intervals.slice();
+  const sum = v.reduce((a, b) => a + b, 0);
+  return v.map(x => Math.round(x * 720 / sum * 10) / 10);
+}
+
+/** 4-2-1: pair cylinders that fire ~360° apart, so each secondary sees evenly spaced pulses. */
+function pairCylinders(offsets) {
+  if (offsets.length !== 4) return [];
+  const gap = (a, b) => Math.abs((((offsets[a] - offsets[b]) % 720) + 720) % 720 - 360);
+  const opts = [[[0, 1], [2, 3]], [[0, 2], [1, 3]], [[0, 3], [1, 2]]];
+  let best = opts[0], bestS = Infinity;
+  for (const o of opts) { const sc = gap(...o[0]) + gap(...o[1]); if (sc < bestS) { bestS = sc; best = o; } }
+  return best;
+}
+
 function rebuildModel() {
-  const inp = CONFIG.inputs;
-  const options = LAYOUTS[inp.cylinders];
-  if (!options.some(o => o.angleDeg === inp.crankAngleDeg)) inp.crankAngleDeg = options[0].angleDeg;
-  const layout = options.find(o => o.angleDeg === inp.crankAngleDeg);
+  const inp = CONFIG.inputs, C = CONFIG.chassis, V = CONFIG.vehicle, D = CONFIG.drive, E = CONFIG.engine;
+  inp.firing = normalizeFiring(inp.firing, inp.cylinders);
+
+  const tire = parseTire(C.tire) || parseTire("150/60-17");
+  D.rollCirc = tire.circ; D.wheelR = tire.r;
+  V.CdA = BODY_CDA[C.body] || 0.45;
+  MODEL.mass = V.mass = C.bikeKg + C.riderKg;
 
   const m = buildEngineModel(inp);
-  const E = CONFIG.engine;
   E.idleRpm = m.idleRpm;
   E.idleBandRpm = m.idleRpm + 200;
   E.limiterCutRpm = m.limiter;
-  E.limiterRestoreRpm = m.limiter - 400;
+  E.limiterRestoreRpm = m.limiter - Math.max(200, Math.round(m.limiter * 0.03));
   E.inertia = m.inertia;
-  CONFIG.vehicle.mass = MODEL.mass;
 
-  // shift lights follow the live redline (were hard-coded to 11000/11800)
+  // shift lights follow the live redline
   CONFIG.leds.amberFrom = Math.round(m.redline * 0.86 / 100) * 100;
   CONFIG.leds.redFrom = Math.round(m.redline * 0.96 / 100) * 100;
 
-  const dt = buildDrivetrain(m.peakPowerKw, m.peakPowerRpm, m.limiter, MODEL.mass);
-  CONFIG.drive.gears = dt.gears;
+  const dt = buildDrivetrain(m, MODEL.mass);
+  D.gears = dt.gears;
 
   Object.assign(CONFIG.tacho, buildTachoScale(m.redline, m.dialMax));
   Object.assign(CONFIG.speedo, buildSpeedoScale(dt.vTerminal * 3.6));
 
   // firing offsets (deg of the 720° cycle) for the audio engine
   const offsets = [0];
-  for (let i = 0; i < layout.intervals.length - 1; i++) offsets.push(offsets[i] + layout.intervals[i]);
-  audioSet({ cyl: inp.cylinders, offsets });
+  for (let i = 0; i < inp.firing.length - 1; i++) offsets.push(offsets[i] + inp.firing[i]);
+  audioSet({ cyl: inp.cylinders, offsets, vcyl: m.displacementCc / inp.cylinders, cr: inp.compression, pairs: pairCylinders(offsets) });
 
   LAST_MODEL = m; LAST_DRIVE = dt;
   resetSim();
   if (staticLayer.width) drawStaticLayer();
-  updateTweakPanel(m, dt, layout);
+  updateTweakPanel(m, dt);
+  saveConfig();
 }
 
 let LAST_MODEL = null, LAST_DRIVE = null;
@@ -597,7 +797,7 @@ function integrateNeedle(key, target, k, dt) {
 const clutchPulled = () => state.lever > 0.6;
 
 function upshift() {
-  if (state.gear >= 6) return;
+  if (state.gear >= CONFIG.drive.gears.length) return;
   const from = state.gear;
   state.gear += 1;
   state.locked = false;
@@ -635,8 +835,10 @@ function startEngine() {
 class EngineDSP {
   constructor(sr) {
     this.sr = sr;
-    this.p = { rpm: 1000, load: 0, combust: 1, running: 1, speed: 0, starter: 0,
-               cyl: 2, offsets: [0, 180], exhaust: "stock", listener: "rider",
+    this.p = { rpm: 1000, load: 0, combust: 1, running: 1, speed: 0, starter: 0, charge: 1,
+               cyl: 2, offsets: [0, 180], vcyl: 174.5, cr: 11.5, pairs: [],
+               exhaust: "stock", collector: "merged", headerMm: 520, linkMm: 450,
+               intake: "airbox", valvetrain: "dohc", cooling: "liquid", listener: "rider",
                pops: 1, master: 0.8, seed: 12345 };
     this.rpmS = 1000; this.loadS = 0; this.speedS = 0; this.heat = 0.5; this.wall = 0.75;   // start warmed up
     this.theta = 0; this.cycleMul = 1;
@@ -644,16 +846,15 @@ class EngineDSP {
     this.cylState = [];
     const bias = [1.00, 0.92, 1.06, 0.96, 1, 1];     // fixed cylinder-to-cylinder imbalance (trapped mass, spark, valve)
     for (let i = 0; i < 6; i++) this.cylState.push({ lastPhi: 720, amp: 0, dAmp: 0, pop: 0, popPhi: 0, iAmp: 0, lastIn: 720, bias: bias[i], src: 0 });
+    this.popSrc = new Float32Array(6);
     this.sinceClose = 99; this.prevCombustLoad = 0;
     this.gearPhase = 0; this.starterPhase = 0;
-    this.buildExhaust("stock");
+    this.buildExhaust();
     this.setListener("rider");
-    // intake resonators (biquad bandpass states)
-    this.ib1 = this.bp(170, 4.0); this.ib2 = this.bp(620, 3.0);
-    this.mechBp = this.bp(3200, 1.2); this.jetBp = this.bp(1900, 0.6); this.flowEnv = 0; this.combBp = this.bp(1300, 1.0);
+    this.setVoicing();
     this.windLp1 = 0; this.windLp2 = 0; this.windHp = 0;
     this.mechEnv = 0; this.combEnv = 0;
-    this.intakeDiff = 0; this.exDiff = 0;
+    this.intakeDiff = 0;
     // listener filters
     this.lpL = 0; this.lpL2 = 0;
     this.gdel = new Float32Array(4096); this.gw = 0;
@@ -671,21 +872,25 @@ class EngineDSP {
   gauss() { let u = this.rand() || 1e-9, v = this.rand(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(6.283185307 * v); }
 
   bp(f, q) {                       // RBJ constant-peak bandpass, DF1 state inline
-    const w = 2 * Math.PI * f / this.sr, al = Math.sin(w) / (2 * q), a0 = 1 + al;
+    const w = 2 * Math.PI * Math.min(f, this.sr * 0.45) / this.sr, al = Math.sin(w) / (2 * q), a0 = 1 + al;
     return { b0: al / a0, b2: -al / a0, a1: -2 * Math.cos(w) / a0, a2: (1 - al) / a0, x1: 0, x2: 0, y1: 0, y2: 0 };
   }
   bpRun(f, x) { const y = f.b0 * x + f.b2 * f.x2 - f.a1 * f.y1 - f.a2 * f.y2; f.x2 = f.x1; f.x1 = x; f.y2 = f.y1; f.y1 = y; return y; }
   lpCoef(fc) { return 1 - Math.exp(-2 * Math.PI * fc / this.sr); }
 
   /* ---------------- exhaust geometry ----------------
-     Each segment: length L (m), relative area S, gas temperature factor (1 = header-hot),
-     wall-loss lowpass fc (Hz) and per-trip gain g. Packing = low fc + lower g. */
-  buildExhaust(kind) {
+     A network of pipes (digital waveguides). Each pipe: length L (m), relative area S,
+     gas temperature factor T (1 = header-hot), wall-loss lowpass fc (Hz), per-trip gain g.
+     Packing = low fc + lower g. Primaries start at the exhaust valves; junctions are
+     pressure-scattering nodes; each chain ends at an open, radiating tailpipe.
+     Header length (headerMm) and the first downstream pipe (linkMm) come from the rider. */
+  buildExhaust() {
+    const p = this.p, kind = p.exhaust;
     const P = {
       // valve end reflection rv; tail end radiation corner fr (ka~1 for the outlet)
       open:  { rv: 0.55, fr: 3400, seg: [
         { L: 0.52, S: 1.0, T: 1.00, fc: 9000, g: 0.985 },   // primary
-        { L: 0.30, S: 1.7, T: 0.97, fc: 8000, g: 0.985 } ]},   // 2-1 collector, open end
+        { L: 0.30, S: 1.7, T: 0.97, fc: 8000, g: 0.985 } ]},   // collector / tail pipe, open end
       slipon: { rv: 0.55, fr: 2600, seg: [
         { L: 0.52, S: 1.0, T: 1.00, fc: 9000, g: 0.985 },
         { L: 0.45, S: 1.6, T: 0.95, fc: 6500, g: 0.98 },   // link pipe (cat removed)
@@ -698,44 +903,66 @@ class EngineDSP {
         { L: 0.11, S: 1.1, T: 0.83, fc: 3000, g: 0.95 },   // crossover tube
         { L: 0.20, S: 11,  T: 0.80, fc: 900,  g: 0.985 },  // chamber 2, packed: loss rises with frequency
         { L: 0.20, S: 1.0, T: 0.78, fc: 3000, g: 0.97 } ]}  // tailpipe
-    }[kind] || null;
-    const cfg = P || this.buildExhaustDefault();
+    };
+    const cfg = P[kind] || P.stock;
     this.exKind = kind;
     this.rv = cfg.rv;
-    this.endA = this.lpCoef(cfg.fr); this.endLp = 0; this.radLp = 0;
-    const MAXD = 256;
-    const mkSeg = s => ({
-      L: s.L, T: s.T, g: s.g, S: s.S, a: this.lpCoef(s.fc),
-      F: new Float32Array(MAXD), B: new Float32Array(MAXD), lf: 0, lb: 0, fo: 0, bo: 0
-    });
-    // one primary PER CYLINDER (Engine Sim: per-cylinder primary_length), meeting at an N-port collector
-    this.primCfg = cfg.seg[0];
-    this.prim = [0, 1, 2, 3].map(() => mkSeg(cfg.seg[0]));
-    this.seg = cfg.seg.slice(1).map(mkSeg);
-    this.junc = [];
-    for (let k = 0; k < this.seg.length - 1; k++) {
-      const S1 = this.seg[k].S, S2 = this.seg[k + 1].S;
-      this.junc.push((S1 - S2) / (S1 + S2));        // pressure reflection for a wave arriving from the left
-    }
-    this.layoutPrimaries();
+    this.endA = this.lpCoef(cfg.fr);
+    const MAXD = this.MAXD = 1024;                   // ≥ 2 m of hot pipe even at 96 kHz
+    const pipes = [], juncs = [], outlets = [];
+    const mk = (L, s, S) => {
+      const q = { L, T: s.T, g: s.g, S, a: this.lpCoef(s.fc), F: new Float32Array(MAXD), B: new Float32Array(MAXD), lf: 0, lb: 0, fo: 0, bo: 0 };
+      pipes.push(q); return q;
+    };
+    const n = p.cyl;
+    const hdr = Math.min(1.6, Math.max(0.15, p.headerMm / 1000));
+    const link = Math.min(1.5, Math.max(0.05, p.linkMm / 1000));
+    // a real header is never perfectly equal-length; the path difference sets the phase between cylinders at the collector
+    const mul = { 1: [1.0], 2: [1.0, 1.19], 3: [1.0, 1.10, 1.21], 4: [1.0, 1.16, 1.16, 1.0] }[n] || [1, 1, 1, 1];
+    const prim = [];
+    for (let c = 0; c < n; c++) prim.push(mk(hdr * mul[c], cfg.seg[0], 1));
+    // feed pipes -> junction -> silencer chain -> open end. Downstream areas are authored for
+    // a twin's collector; scaled up when more primaries share the pipe.
+    const chain = (feed, scale, cyls) => {
+      const segs = cfg.seg.slice(1).map((s, k) => mk(k === 0 ? link : s.L, s, s.S * scale));
+      juncs.push({ down: feed, up: [segs[0]] });
+      for (let k = 0; k < segs.length - 1; k++) juncs.push({ down: [segs[k]], up: [segs[k + 1]] });
+      outlets.push({ first: segs[0], last: segs[segs.length - 1], cyls, endLp: 0, exDiff: 0, flowEnv: 0, jet: this.bp(1900, 0.6) });
+    };
+    const all = prim.map((_, c) => c);
+    if (n === 1 || p.collector === "separate") prim.forEach((q, c) => chain([q], 1, [c]));
+    else if (p.collector === "pairs" && n === 4 && p.pairs && p.pairs.length === 2) {
+      // 4-2-1: cylinders ~360° apart share a secondary, then the two secondaries merge
+      const sec = p.pairs.map(pr => { const q = mk(0.32, cfg.seg[0], 1.6); juncs.push({ down: pr.map(c => prim[c]), up: [q] }); return q; });
+      chain(sec, 2, all);
+    } else chain(prim, Math.max(1, n / 2), all);
+    this.pipes = pipes; this.juncs = juncs; this.outlets = outlets; this.prim = prim;
     this.wi = 0;
     // calibrated in offline tests: open 0 dB, slip-on -4 dB, stock -11 dB at 6000 rpm WOT
     this.exGain = { open: 1.0, slipon: 1.05, stock: 3.5 }[kind] || 1;
     this.jetK = { open: 0.75, slipon: 0.4, stock: 0.05 }[kind] || 0.5;
     this.popK = { open: 1.4, slipon: 1.1, stock: 0.42 }[kind] || 1;   // lean overrun + less back-pressure = more afterfire
-    // (afterfire is injected at the collector outlet, i.e. into seg[0])
   }
-  buildExhaustDefault() { return null; }
 
-  /* Unequal primary lengths per layout (m, relative to the base primary) — a real
-     header is never perfectly equal-length, and the path difference is part of a
-     bike's voice (phase between cylinders at the collector). */
-  layoutPrimaries() {
-    const n = this.p.cyl, base = this.primCfg.L;
-    const mul = { 2: [1.0, 1.19], 3: [1.0, 1.10, 1.21], 4: [1.0, 1.16, 1.16, 1.0] }[n] || [1, 1, 1, 1];
-    for (let c = 0; c < 4; c++) this.prim[c].L = base * (mul[c] || 1);
-    // downstream areas are authored for a twin; scale for more primaries feeding the collector
-    this.areaScale = Math.max(1, n / 2);
+  /* Intake and mechanical voicing: what the rider hears besides the exhaust. */
+  setVoicing() {
+    const p = this.p, vd = Math.max(50, p.vcyl * p.cyl);
+    // airbox volume scales with displacement, so its Helmholtz resonance goes as 1/√V
+    const hz = 170 * Math.sqrt(349 / vd);
+    const IN = {                    // [f1, Q1, f2, Q2, level]
+      airbox: [hz, 4.0, 620, 3.0, 1.0],
+      pod:    [hz * 1.7, 2.0, 850, 2.0, 1.8],       // no box: weak, higher resonance, much more hiss/roar
+      stacks: [570, 2.0, 1500, 2.5, 2.6]            // bare runners: quarter-wave of ~15 cm, loud induction howl
+    }[p.intake] || [hz, 4.0, 620, 3.0, 1.0];
+    this.ib1 = this.bp(IN[0], IN[1]); this.ib2 = this.bp(IN[2], IN[3]); this.inK = IN[4];
+    // valvetrain: DOHC buckets are a high, quiet tick; pushrods + tappets clatter lower and louder
+    const VT = { dohc: [3200, 1.2, 1.0], sohc: [2600, 1.4, 1.2], pushrod: [1700, 2.2, 1.7] }[p.valvetrain] || [3200, 1.2, 1.0];
+    this.mechBp = this.bp(VT[0], VT[1]); this.mechK = VT[2];
+    this.combBp = this.bp(1300, 1.0);
+    // air-cooled: no water jacket to damp the block, and the fins ring on every combustion knock
+    const air = p.cooling === "air";
+    this.coolK = air ? 1.5 : 1.0;
+    this.finBp = this.bp(1250, 9); this.finK = air ? 0.9 : 0;
   }
 
   setListener(kind) {
@@ -752,10 +979,17 @@ class EngineDSP {
 
   set(msg) {
     const p = this.p;
-    for (const k in msg) p[k] = msg[k];
-    if (msg.exhaust && msg.exhaust !== this.exKind) this.buildExhaust(msg.exhaust);
+    let rebuild = false, voice = false;
+    for (const k in msg) {
+      const changed = JSON.stringify(p[k]) !== JSON.stringify(msg[k]);
+      p[k] = msg[k];
+      if (!changed) continue;
+      if (k === "exhaust" || k === "collector" || k === "headerMm" || k === "linkMm" || k === "cyl" || k === "pairs") rebuild = true;
+      if (k === "intake" || k === "valvetrain" || k === "cooling" || k === "vcyl" || k === "cyl") voice = true;
+    }
+    if (rebuild) this.buildExhaust();
+    if (voice) this.setVoicing();
     if (msg.listener && msg.listener !== this.listener) this.setListener(msg.listener);
-    if (msg.cyl !== undefined) this.layoutPrimaries();
   }
 
   /* One-sided gas pulses in crank-angle domain (deg after exhaust-valve-open). */
@@ -767,9 +1001,13 @@ class EngineDSP {
     const aR = 1 - Math.exp(-1 / (0.012 * sr)), aL = 1 - Math.exp(-1 / (0.006 * sr));
     const aV = 1 - Math.exp(-1 / (0.3 * sr)), aH = 1 - Math.exp(-1 / (4.0 * sr)), aW = 1 - Math.exp(-1 / (40 * sr));
     const cyl = p.cyl, offs = p.offsets;
-    const segs = this.seg, nS = segs.length, J = this.junc;
-    const MAXD = 256, mask = MAXD - 1;
+    const pipes = this.pipes, juncs = this.juncs, outlets = this.outlets, prim = this.prim;
+    const MAXD = this.MAXD, mask = MAXD - 1;
     const combs = [this.combL, this.combR], aps = [this.apL, this.apR];
+    // bigger cylinders blow down harder (more mass per event); higher compression expands the
+    // gas further before the exhaust valve opens, so the blowdown is a little softer
+    const pulseK = Math.sqrt(p.vcyl / 174.5) * Math.pow(11.5 / p.cr, 0.3);
+    const crK = p.cr / 11;
 
     for (let i = 0; i < n; i++) {
       // ---- parameter smoothing (no zipper noise)
@@ -785,8 +1023,23 @@ class EngineDSP {
       if (p.load > 0.12 && p.combust) this.sinceClose = 0; else this.sinceClose += 1 / sr;
 
       // ---- crank angle (720 deg per 4-stroke cycle), with per-cycle speed wobble
-      const dTheta = 6 * rpm / sr * this.cycleMul;
-      const prevTheta = this.theta;
+      let dTheta = 6 * rpm / sr * this.cycleMul;
+      if (cyl === 1 && running) {
+        // single: the crank visibly speeds up through the power stroke and bleeds it off
+        // over the other three strokes (compression last). Heavy flywheel only partly hides it;
+        // this intra-cycle lope is a big part of the thumper sound at low rpm.
+        let ph = this.theta - offs[0]; if (ph < 0) ph += 720;
+        const dev = ph < 180 ? -Math.cos(Math.PI * ph / 180) : Math.cos(Math.PI * (ph - 180) / 540);
+        dTheta *= 1 + dev * (0.015 + 0.075 * Math.max(0, 1 - rpm / 3500)) * Math.sqrt(crK);
+      } else if (p.starter > 0 && !running) {
+        // cranking: each compression stroke drags the starter down, expansion hands it back
+        let dev = 0.125 * cyl;
+        for (let c = 0; c < cyl; c++) {
+          let d = ((this.theta - offs[c]) % 720 + 720) % 720; if (d > 360) d -= 720;
+          if (d > -90 && d < 90) dev -= 0.5 * (1 + Math.cos(Math.PI * d / 90));
+        }
+        dTheta *= Math.max(0.25, 1 + 0.5 * crK * dev);
+      }
       this.theta += dTheta;
       if (this.theta >= 720) {
         this.theta -= 720;
@@ -795,17 +1048,18 @@ class EngineDSP {
       }
 
       // ---- gas-dynamic sources
-      let popSrc = 0, inSrc = 0, mechImp = 0, combImp = 0;
-      const rpmK = rpm / 1000;                              // pulse height ∝ mass/time ∝ rpm
+      let inSrc = 0, mechImp = 0, combImp = 0;
+      const rpmK = rpm / 1000 * pulseK;                     // pulse height ∝ mass/time ∝ rpm
       const pb = 16 + 10 * (1 - load);                      // blowdown width: faster when cylinder pressure is high
       for (let c = 0; c < cyl; c++) {
         const cs = this.cylState[c];
-        let phi = this.theta - offs[c]; if (phi < 0) phi += 720;          // 0 = firing TDC
+        let phi = this.theta - offs[c]; phi = ((phi % 720) + 720) % 720;  // 0 = firing TDC
         const pe = phi - 130; const pex = pe < 0 ? pe + 720 : pe;           // deg after EVO
         if (pex < cs.lastPhi) {                                            // new exhaust event: latch amplitudes
           const cov = 0.025 + 0.12 * (1 - load) * Math.max(0, 1 - rpm / 4000);
           if (running && p.combust) {
-            cs.amp = cs.bias * (0.10 + 0.90 * load) * Math.max(0.3, 1 + cov * this.gauss());
+            // trapped charge follows the breathing curve: the torque dip is audible too
+            cs.amp = cs.bias * (0.10 + 0.90 * load) * (0.5 + 0.5 * p.charge) * Math.max(0.3, 1 + cov * this.gauss());
           } else cs.amp = running ? 0.035 : 0.02;                           // motoring: air only
           cs.dAmp = (running ? 0.10 + 0.35 * load : 0.05) * (1 + 0.02 * this.gauss());
           // afterfire on closed throttle: unburnt charge lighting off in the hot header
@@ -822,8 +1076,10 @@ class EngineDSP {
         cs.lastPhi = pex;
         cs.src = rpmK * (cs.amp * EngineDSP.blow(pex, pb) + cs.dAmp * EngineDSP.disp(pex))
         // choked-flow front: fixed ~0.25 ms rise independent of rpm -> the "bark" at low rpm
-               + 0.9 * cs.amp * EngineDSP.blow(pex / (0.006 * rpm + 1e-6), 0.25);
-        if (cs.pop > 0) { const q = pex - cs.popPhi; if (q > 0) { const qt = q / (0.006 * rpm + 1e-6); if (qt < 2.0) popSrc += cs.pop * 2.6 * EngineDSP.blow(qt, 0.18); } }   // crack: ~0.18 ms rise in TIME (band-limited)
+               + 0.9 * pulseK * cs.amp * EngineDSP.blow(pex / (0.006 * rpm + 1e-6), 0.25);
+        let pop = 0;
+        if (cs.pop > 0) { const q = pex - cs.popPhi; if (q > 0) { const qt = q / (0.006 * rpm + 1e-6); if (qt < 2.0) pop = cs.pop * 2.6 * EngineDSP.blow(qt, 0.18); } }   // crack: ~0.18 ms rise in TIME (band-limited)
+        this.popSrc[c] = pop;
 
         // intake stroke ~ 360..580 deg: suction pulse; sharp valve-closing edge
         let pin = phi - 355; if (pin < 0) pin += 720;
@@ -832,54 +1088,58 @@ class EngineDSP {
         if (pin < 225) { const s = Math.sin(Math.PI * pin / 225); inSrc -= rpmK * cs.iAmp * s * s * s; }
       }
 
-      // ---- exhaust waveguide (pressure waves, fractional delays)
+      // ---- exhaust waveguide network (pressure waves, fractional delays)
       const cHot = 470 + 160 * this.heat;                   // m/s: ~470 cold-ish -> ~630 at full heat
       this.wi = (this.wi + 1) & mask;
-      const prim = this.prim;
-      for (let k = 0; k < nS + cyl; k++) {
-        const s = k < nS ? segs[k] : prim[k - nS];
+      const w = this.wi;
+      for (let k = 0; k < pipes.length; k++) {
+        const s = pipes[k];
         const d = Math.min(MAXD - 3, Math.max(2, s.L / (cHot * s.T) * sr));
         const di = d | 0, fr = d - di;
-        let r0 = (this.wi - di) & mask, r1 = (r0 - 1) & mask;
-        let f = s.F[r0] + (s.F[r1] - s.F[r0]) * fr;
-        let b = s.B[r0] + (s.B[r1] - s.B[r0]) * fr;
+        const r0 = (w - di) & mask, r1 = (r0 - 1) & mask;
+        const f = s.F[r0] + (s.F[r1] - s.F[r0]) * fr;
+        const b = s.B[r0] + (s.B[r1] - s.B[r0]) * fr;
         s.lf += (f - s.lf) * s.a; s.lb += (b - s.lb) * s.a;           // wall/packing loss
         s.fo = s.lf * s.g; s.bo = s.lb * s.g;
       }
-      // inputs for this sample
-      const w = this.wi;
       // valve ends of each primary: source + partial reflection
       for (let c = 0; c < cyl; c++) prim[c].F[w] = this.cylState[c].src + this.rv * prim[c].bo;
-      // N-port collector (pressure scattering junction): p_J = 2·Σ(S_i p_i+)/Σ S_i, p_i- = p_J − p_i+
-      const Sc = segs[0].S * this.areaScale;
-      let num = Sc * segs[0].bo, den = Sc;
-      for (let c = 0; c < cyl; c++) { num += prim[c].fo; den += 1; }
-      const pJ = 2 * num / den;
-      for (let c = 0; c < cyl; c++) prim[c].B[w] = pJ - prim[c].fo;
-      segs[0].F[w] = pJ - segs[0].bo + popSrc;
-      for (let k = 0; k < nS - 1; k++) {
-        const r = J[k], fL = segs[k].fo, bR = segs[k + 1].bo;
-        segs[k + 1].F[w] = (1 + r) * fL - r * bR;
-        segs[k].B[w] = r * fL + (1 - r) * bR;
+      // pressure-scattering junctions: p_J = 2·Σ(S_i p_i,in)/Σ S_i, p_i,out = p_J − p_i,in
+      for (let j = 0; j < juncs.length; j++) {
+        const J = juncs[j];
+        let num = 0, den = 0;
+        for (const q of J.down) { num += q.S * q.fo; den += q.S; }
+        for (const q of J.up) { num += q.S * q.bo; den += q.S; }
+        const pJ = 2 * num / den;
+        for (const q of J.down) q.B[w] = pJ - q.fo;
+        for (const q of J.up) q.F[w] = pJ - q.bo;
       }
-      const last = segs[nS - 1];
-      this.endLp += (last.fo - this.endLp) * this.endA;
-      last.B[w] = -0.97 * this.endLp;                        // open end: inverted, low frequencies reflect most
-      const u = last.fo + 0.97 * this.endLp;                 // volume velocity at the outlet
-      let exRad = (u - this.exDiff) * 40; this.exDiff = u;  // far field p ∝ du/dt
-      // turbulent jet noise at the tailpipe: broadband rasp riding each flow pulse (not muffled — made downstream)
-      this.flowEnv += (Math.abs(u) - this.flowEnv) * 0.02;
-      exRad += this.bpRun(this.jetBp, this.rand() * 2 - 1) * Math.pow(this.flowEnv, 1.4) * this.jetK;
+      let exRad = 0;
+      for (let k = 0; k < outlets.length; k++) {
+        const o = outlets[k];
+        let pop = 0; for (const c of o.cyls) pop += this.popSrc[c];
+        o.first.F[w] += pop;                                 // afterfire lights off just past the collector
+        const last = o.last;
+        o.endLp += (last.fo - o.endLp) * this.endA;
+        last.B[w] = -0.97 * o.endLp;                         // open end: inverted, low frequencies reflect most
+        const u = last.fo + 0.97 * o.endLp;                  // volume velocity at the outlet
+        exRad += (u - o.exDiff) * 40; o.exDiff = u;          // far field p ∝ du/dt
+        // turbulent jet noise at the tailpipe: broadband rasp riding each flow pulse (not muffled — made downstream)
+        o.flowEnv += (Math.abs(u) - o.flowEnv) * 0.02;
+        exRad += this.bpRun(o.jet, this.rand() * 2 - 1) * Math.pow(o.flowEnv, 1.4) * this.jetK;
+      }
 
       // ---- intake: airbox Helmholtz + snorkel quarter-wave, radiated as d/dt
       const ib = this.bpRun(this.ib1, inSrc) + 0.6 * this.bpRun(this.ib2, inSrc);
-      const inRad = (ib - this.intakeDiff) * 85; this.intakeDiff = ib;
+      const inRad = (ib - this.intakeDiff) * 85 * this.inK; this.intakeDiff = ib;
 
       // ---- mechanical: valve seats + combustion through the cases + primary gear whine
-      this.mechEnv = this.mechEnv * Math.exp(-1 / (0.0012 * sr)) + mechImp * (0.3 + rpm / 14000);
+      this.mechEnv = this.mechEnv * Math.exp(-1 / (0.0012 * sr)) + mechImp * (0.3 + rpm / 14000) * this.mechK;
       this.combEnv = this.combEnv * Math.exp(-1 / (0.0025 * sr)) + combImp;
       const nz = this.rand() * 2 - 1;
       let mech = this.bpRun(this.mechBp, nz * this.mechEnv) * 0.9 + this.bpRun(this.combBp, (this.rand() * 2 - 1) * this.combEnv) * 0.9;
+      if (this.finK > 0) mech += this.bpRun(this.finBp, (this.rand() * 2 - 1) * this.combEnv) * this.finK;
+      mech *= this.coolK;
       this.gearPhase += 2 * Math.PI * (rpm / 60 * 23) / sr; if (this.gearPhase > 6.2832) this.gearPhase -= 6.2832;
       if (running || rpm > 50) mech += Math.sin(this.gearPhase) * 0.07 * (0.3 + load) * Math.min(1, rpm / 3000);
       if (p.starter > 0) { this.starterPhase += 2 * Math.PI * 1150 / sr; mech += (Math.sin(this.starterPhase) * 0.35 + nz * 0.15) * p.starter; }
@@ -892,7 +1152,7 @@ class EngineDSP {
 
       // ---- listener mix
       let dry = exRad * this.exGain * L.ex + inRad * L.in + mech * L.mech + wind * L.wind;
-      if (!isFinite(dry)) { dry = 0; this.buildExhaust(this.exKind); }
+      if (!isFinite(dry)) { dry = 0; this.buildExhaust(); }
       this.lpL += (dry - this.lpL) * this.lpLa; this.lpL2 += (this.lpL - this.lpL2) * this.lpLa;
       let x = this.lpL2;
       if (L.ground > 0) {                                     // ground bounce: comb from the reflected path
@@ -942,8 +1202,9 @@ function audioSet(msg) {
 }
 
 function soundConfigMsg() {
-  const s = CONFIG.sound;
-  return { exhaust: s.exhaust, listener: s.listener, pops: s.pops ? 1 : 0, master: s.volume };
+  const s = CONFIG.sound, i = CONFIG.inputs;
+  return { exhaust: s.exhaust, collector: s.collector, headerMm: s.headerMm, linkMm: s.linkMm, intake: s.intake,
+           valvetrain: i.valvetrain, cooling: i.cooling, listener: s.listener, pops: s.pops ? 1 : 0, master: s.volume };
 }
 
 async function ensureAudio() {
@@ -1013,6 +1274,7 @@ function pushAudioState() {
     combust: state.firing ? 1 : 0,
     running: state.running ? 1 : 0,
     speed: state.v,
+    charge: veShape(state.rpm),
     starter: state.starterT > 0 ? 1 : 0
   });
 }
@@ -1200,9 +1462,10 @@ function drawTachoFace(c) {
   c.fillText("R.P.M.  x 1000", cx, cy - fr * 0.30);
   c.font = "600 " + (fr * 0.072) + "px ui-sans-serif, 'Helvetica Neue', Arial, sans-serif";
   c.fillStyle = "rgba(20,21,23,0.55)";
-  const CYL_NAME = { 2: "TWIN", 3: "TRIPLE", 4: "FOUR" };
+  const CYL_NAME = { 1: "SINGLE", 2: "TWIN", 3: "TRIPLE", 4: "FOUR" };
   const inp = CONFIG.inputs;
-  c.fillText(Math.round(inp.displacementCc) + "  " + CYL_NAME[inp.cylinders], cx, cy - fr * 0.53);
+  const cc = LAST_MODEL ? LAST_MODEL.displacementCc : 0;
+  c.fillText(Math.round(cc) + "  " + CYL_NAME[inp.cylinders], cx, cy - fr * 0.53);
 
   drawGlass(c, cx, cy, fr);
 }
@@ -1399,14 +1662,80 @@ function render(alpha) {
 }
 
 /* ============================== TWEAK PANEL =============================== */
-function populateCrankOptions(cylinders) {
+/* Numeric spec fields: [key, label, unit, min, max, step]. A number box for exact
+   spec-sheet entry plus a slider for live tweaking. "sound" fields only retune the
+   audio; everything else rebuilds the model (and resets the ride). */
+const NUM_FIELDS = {
+  "f-engine": { obj: () => CONFIG.inputs, kind: "model", rows: [
+    ["boreMm",      "Bore",                    "mm",  30, 120, 0.1],
+    ["strokeMm",    "Stroke",                  "mm",  30, 120, 0.1],
+    ["compression", "Compression ratio",       ":1",  7,  15,  0.05],
+    ["redline",     "Redline",                 "rpm", 3000, 18000, 50],
+    ["idleRpm",     "Idle",                    "rpm", 600, 2000, 25],
+    ["torqueRpm",   "Peak torque at",          "rpm", 1500, 16000, 50],
+    ["powerRpm",    "Peak power at",           "rpm", 2000, 18000, 50],
+    ["peakVE",      "Volumetric efficiency",   "%",   60, 125, 0.5]
+  ]},
+  "f-exhaust": { obj: () => CONFIG.sound, kind: "sound", rows: [
+    ["headerMm",    "Header (primary) length", "mm",  150, 1600, 10],
+    ["linkMm",      "Link / tail pipe length", "mm",  50, 1500, 10]
+  ]},
+  "f-chassis": { obj: () => CONFIG.chassis, kind: "model", rows: [
+    ["bikeKg",      "Bike weight (wet)",       "kg",  80, 450, 1],
+    ["riderKg",     "Rider + gear",            "kg",  0, 200, 1],
+    ["primary",     "Primary reduction",       ":1",  1, 4, 0.001],
+    ["sprocketF",   "Front sprocket",          "T",   10, 25, 1],
+    ["sprocketR",   "Rear sprocket",           "T",   25, 60, 1]
+  ]}
+};
+
+function buildNumFields() {
+  for (const [cid, spec] of Object.entries(NUM_FIELDS)) {
+    const box = document.getElementById(cid);
+    for (const [key, label, unit, min, max, step] of spec.rows) {
+      const lab = document.createElement("label");
+      lab.innerHTML = `<div class="row"><span>${label}</span><span><input type="number" id="n-${key}" min="${min}" max="${max}" step="${step}"><span class="unit">${unit}</span></span></div>` +
+                      `<input type="range" id="r-${key}" min="${min}" max="${max}" step="${step}" aria-label="${label}">`;
+      box.appendChild(lab);
+      const nIn = lab.querySelector("input[type=number]"), rIn = lab.querySelector("input[type=range]");
+      const apply = v => {
+        if (!isFinite(v)) { nIn.value = spec.obj()[key]; return; }
+        v = clamp(v, min, max);
+        spec.obj()[key] = v; nIn.value = v; rIn.value = v;
+        if (spec.kind === "sound") { ensureAudio(); audioSet(soundConfigMsg()); saveConfig(); }
+        else rebuildModel();
+      };
+      rIn.addEventListener("input", () => apply(+rIn.value));
+      nIn.addEventListener("change", () => apply(+nIn.value));
+    }
+  }
+}
+
+function syncNumFields() {
+  for (const spec of Object.values(NUM_FIELDS)) {
+    for (const [key] of spec.rows) {
+      const v = spec.obj()[key];
+      const nIn = document.getElementById("n-" + key), rIn = document.getElementById("r-" + key);
+      if (nIn && document.activeElement !== nIn) nIn.value = v;
+      if (rIn) rIn.value = v;
+    }
+  }
+}
+
+function populateCrankOptions(cylinders, firing) {
   const sel = document.getElementById("in-crank");
   sel.innerHTML = "";
+  let match = "custom";
   for (const o of LAYOUTS[cylinders]) {
     const opt = document.createElement("option");
-    opt.value = o.angleDeg; opt.textContent = o.label;
+    opt.value = o.id; opt.textContent = o.label + "  [" + o.intervals.join(", ") + "]";
     sel.appendChild(opt);
+    if (o.intervals.every((v, i) => Math.abs(v - firing[i]) < 0.05)) match = o.id;
   }
+  const opt = document.createElement("option");
+  opt.value = "custom"; opt.textContent = "Custom (type intervals below)";
+  sel.appendChild(opt);
+  sel.value = match;
 }
 
 function drawCurve(m) {
@@ -1436,74 +1765,183 @@ function drawCurve(m) {
   plot(powerPts, "#8FA8C7");
 }
 
-function updateTweakPanel(m, dt, layout) {
-  const inp = CONFIG.inputs, S = CONFIG.sound;
-  document.getElementById("in-cyl").value = inp.cylinders;
-  document.getElementById("in-disp").value = inp.displacementCc;
-  document.getElementById("in-bsr").value = inp.boreStrokeRatio;
-  document.getElementById("in-imep").value = inp.peakImepBar;
-  document.getElementById("in-mpsin").value = inp.maxPistonSpeed;
-  document.getElementById("in-exhaust").value = S.exhaust;
-  document.getElementById("in-listener").value = S.listener;
-  document.getElementById("in-pops").checked = S.pops;
-  document.getElementById("in-vol").value = S.volume;
-  document.getElementById("in-clutch").value = CONFIG.engine.clutchOutSec;
-  document.getElementById("out-vol").textContent = Math.round(S.volume * 100 / 1.6) + "%";
-  document.getElementById("out-clutch").textContent = CONFIG.engine.clutchOutSec.toFixed(2) + " s";
+let PANEL_WARN = [];
 
-  populateCrankOptions(inp.cylinders);
-  document.getElementById("in-crank").value = inp.crankAngleDeg;
+function updateTweakPanel(m, dt) {
+  const inp = CONFIG.inputs, S = CONFIG.sound, C = CONFIG.chassis;
+  const $ = id => document.getElementById(id);
+  const setText = (id, t) => { const el = $(id); if (el) el.textContent = t; };
+  $("in-cyl").value = inp.cylinders;
+  populateCrankOptions(inp.cylinders, inp.firing);
+  if (document.activeElement !== $("in-firing")) $("in-firing").value = inp.firing.join(", ");
+  $("in-valve").value = inp.valvetrain;
+  $("in-cool").value = inp.cooling;
+  $("in-exhaust").value = S.exhaust;
+  $("in-collector").querySelector('option[value="pairs"]').disabled = inp.cylinders !== 4;
+  $("in-collector").value = S.collector;
+  $("in-intake").value = S.intake;
+  $("in-listener").value = S.listener;
+  $("in-pops").checked = S.pops;
+  $("in-vol").value = S.volume;
+  $("in-clutch").value = CONFIG.engine.clutchOutSec;
+  $("in-body").value = C.body;
+  if (document.activeElement !== $("in-tire")) $("in-tire").value = C.tire;
+  $("in-gearcount").value = C.gearCount;
+  $("in-gearcount").disabled = dt.manual;
+  if (document.activeElement !== $("in-gears")) $("in-gears").value = C.gearRatios;
+  setText("out-vol", Math.round(S.volume * 100 / 1.6) + "%");
+  setText("out-clutch", CONFIG.engine.clutchOutSec.toFixed(2) + " s");
+  syncNumFields();
 
-  document.getElementById("out-disp").textContent = inp.displacementCc + " cc";
-  document.getElementById("out-bsr").textContent = inp.boreStrokeRatio.toFixed(2);
-  document.getElementById("out-imep").textContent = inp.peakImepBar.toFixed(1) + " bar";
-  document.getElementById("out-mps-in").textContent = inp.maxPistonSpeed.toFixed(1) + " m/s";
+  const n = inp.cylinders;
+  setText("out-disp", m.displacementCc.toFixed(1) + " cc  (" + (m.displacementCc / n).toFixed(1) + " cc/cyl)");
+  setText("out-bsr", (m.boreMm / m.strokeMm).toFixed(2) + (m.boreMm >= m.strokeMm ? "  oversquare" : "  undersquare"));
+  setText("out-mpsredline", m.mpsAtRedline.toFixed(1) + " m/s");
+  setText("out-limiter", m.limiter.toLocaleString() + " rpm");
+  setText("out-mep", m.imepPeak.toFixed(1) + " / " + m.bmepPeak.toFixed(1) + " bar");
+  setText("out-peakT", m.peakTorqueNm.toFixed(1) + " Nm @ " + m.peakTorqueRpm.toLocaleString());
+  setText("out-peakP", (m.peakPowerKw / 0.7355).toFixed(1) + " PS (" + m.peakPowerKw.toFixed(1) + " kW) @ " + m.peakPowerRpm.toLocaleString());
+  // average firing frequency: n bangs per 2 revolutions — the pitch of the exhaust note
+  setText("out-fire", (m.idleRpm * n / 120).toFixed(1) + " / " + (m.redline * n / 120).toFixed(0) + " Hz");
+  setText("out-inertia", m.inertia.toFixed(4) + " kg m²");
+  setText("out-mass", MODEL.mass.toFixed(0) + " kg · " + (m.peakPowerKw / 0.7355 / MODEL.mass * 1000).toFixed(0) + " PS/t");
+  setText("out-vterm", (dt.vTerminal * 3.6).toFixed(0) + " km/h");
 
-  document.getElementById("out-bore").textContent = m.boreMm.toFixed(1) + " x " + m.strokeMm.toFixed(1) + " mm";
-  document.getElementById("out-redline").textContent = m.redline.toLocaleString() + " rpm";
-  document.getElementById("out-limiter").textContent = m.limiter.toLocaleString() + " rpm";
-  document.getElementById("out-idle").textContent = m.idleRpm.toLocaleString() + " rpm";
-  document.getElementById("out-peakT").textContent = m.peakTorqueNm.toFixed(1) + " Nm @ " + m.peakTorqueRpm.toLocaleString();
-  document.getElementById("out-peakP").textContent =
-    (m.peakPowerKw / 0.7355).toFixed(1) + " PS (" + m.peakPowerKw.toFixed(1) + " kW) @ " + m.peakPowerRpm.toLocaleString();
-  document.getElementById("out-mpsredline").textContent = m.mpsAtRedline.toFixed(1) + " m/s";
-  document.getElementById("out-inertia").textContent = m.inertia.toFixed(4) + " kg m²";
-  document.getElementById("out-vterm").textContent = (dt.vTerminal * 3.6).toFixed(0) + " km/h";
-
-  document.getElementById("out-gears").textContent = dt.gears
+  $("out-gears").textContent = dt.gears
     .map((r, i) => `Gear ${i + 1}:  ${r.toFixed(2)}  ->  ${dt.kmhAtLimiter[i].toFixed(0)} km/h @ limiter`)
     .join("\n");
+  const warn = m.warn.concat(PANEL_WARN);
+  if (!parseTire(C.tire)) warn.push("Tyre size not understood; using 150/60-17.");
+  $("out-warn").textContent = warn.join("\n");
   drawCurve(m);
 }
 
+/* ---- config persistence: autosave in this browser, copy/paste as JSON */
+const STORE_KEY = "pods.bikeConfig.v2";
+function exportConfig() {
+  return { version: 2, engine: CONFIG.inputs, chassis: CONFIG.chassis, sound: CONFIG.sound,
+           rider: { clutchOutSec: CONFIG.engine.clutchOutSec } };
+}
+/** Copy only known keys with matching types, so a bad paste can't break the model. */
+function importConfig(o) {
+  if (!o || typeof o !== "object") return false;
+  const merge = (dst, src) => {
+    if (!src || typeof src !== "object") return;
+    for (const k of Object.keys(dst)) {
+      if (!(k in src)) continue;
+      const a = dst[k], b = src[k];
+      if (Array.isArray(a)) { if (Array.isArray(b)) dst[k] = b.map(Number); }
+      else if (typeof a === typeof b && (typeof b !== "number" || isFinite(b))) dst[k] = b;
+    }
+  };
+  merge(CONFIG.inputs, o.engine);
+  merge(CONFIG.chassis, o.chassis);
+  merge(CONFIG.sound, o.sound);
+  if (o.rider && isFinite(o.rider.clutchOutSec)) CONFIG.engine.clutchOutSec = clamp(+o.rider.clutchOutSec, 0.15, 1.5);
+  const inp = CONFIG.inputs;
+  inp.cylinders = clamp(Math.round(inp.cylinders), 1, 4);
+  for (const spec of Object.values(NUM_FIELDS)) {
+    for (const [key, , , min, max] of spec.rows) spec.obj()[key] = clamp(+spec.obj()[key] || min, min, max);
+  }
+  return true;
+}
+function saveConfig() { try { localStorage.setItem(STORE_KEY, JSON.stringify(exportConfig())); } catch (e) { /* storage blocked */ } }
+function loadSavedConfig() { try { const t = localStorage.getItem(STORE_KEY); if (t) importConfig(JSON.parse(t)); } catch (e) { /* ignore */ } }
+const DEFAULTS = JSON.parse(JSON.stringify(exportConfig()));
+
 function wireTweakPanel() {
   const $ = id => document.getElementById(id);
-  const num = (id, fn) => $(id).addEventListener("input", () => { fn(+$(id).value); rebuildModel(); });
-  num("in-disp",  v => CONFIG.inputs.displacementCc = v);
-  num("in-bsr",   v => CONFIG.inputs.boreStrokeRatio = v);
-  num("in-imep",  v => CONFIG.inputs.peakImepBar = v);
-  num("in-mpsin", v => CONFIG.inputs.maxPistonSpeed = v);
-  $("in-cyl").addEventListener("change", () => { CONFIG.inputs.cylinders = +$("in-cyl").value; rebuildModel(); });
-  $("in-crank").addEventListener("change", () => { CONFIG.inputs.crankAngleDeg = +$("in-crank").value; rebuildModel(); });
+  buildNumFields();
+  const soundOnly = () => { ensureAudio(); audioSet(soundConfigMsg()); saveConfig(); };
+
+  $("in-cyl").addEventListener("change", () => {
+    const n = +$("in-cyl").value;
+    CONFIG.inputs.cylinders = n;
+    CONFIG.inputs.firing = LAYOUTS[n][0].intervals.slice();
+    if (n !== 4 && CONFIG.sound.collector === "pairs") CONFIG.sound.collector = "merged";
+    soundOnly();
+    rebuildModel();
+  });
+  $("in-crank").addEventListener("change", () => {
+    const o = LAYOUTS[CONFIG.inputs.cylinders].find(x => x.id === $("in-crank").value);
+    if (o) { CONFIG.inputs.firing = o.intervals.slice(); rebuildModel(); }
+    else $("in-firing").focus();
+  });
+  $("in-firing").addEventListener("change", () => {
+    const v = parseNums($("in-firing").value), n = CONFIG.inputs.cylinders;
+    PANEL_WARN = [];
+    if (v.length !== n) PANEL_WARN.push("Firing intervals: need exactly " + n + " number" + (n > 1 ? "s" : "") + " (got " + v.length + "); kept the previous ones.");
+    else {
+      const sum = v.reduce((a, b) => a + b, 0);
+      if (Math.abs(sum - 720) > 0.5) PANEL_WARN.push("Firing intervals summed to " + sum + "°; scaled to 720°.");
+      CONFIG.inputs.firing = v;
+    }
+    rebuildModel();
+    $("in-firing").value = CONFIG.inputs.firing.join(", ");
+  });
+  $("in-valve").addEventListener("change", () => { CONFIG.inputs.valvetrain = $("in-valve").value; soundOnly(); });
+  $("in-cool").addEventListener("change", () => { CONFIG.inputs.cooling = $("in-cool").value; soundOnly(); });
 
   // sound + rider settings don't rebuild the model or reset the ride
-  $("in-exhaust").addEventListener("change", () => { CONFIG.sound.exhaust = $("in-exhaust").value; ensureAudio(); audioSet(soundConfigMsg()); });
-  $("in-listener").addEventListener("change", () => { CONFIG.sound.listener = $("in-listener").value; ensureAudio(); audioSet(soundConfigMsg()); });
-  $("in-pops").addEventListener("change", () => { CONFIG.sound.pops = $("in-pops").checked; audioSet(soundConfigMsg()); });
+  $("in-exhaust").addEventListener("change", () => { CONFIG.sound.exhaust = $("in-exhaust").value; soundOnly(); });
+  $("in-collector").addEventListener("change", () => { CONFIG.sound.collector = $("in-collector").value; soundOnly(); });
+  $("in-intake").addEventListener("change", () => { CONFIG.sound.intake = $("in-intake").value; soundOnly(); });
+  $("in-listener").addEventListener("change", () => { CONFIG.sound.listener = $("in-listener").value; soundOnly(); });
+  $("in-pops").addEventListener("change", () => { CONFIG.sound.pops = $("in-pops").checked; audioSet(soundConfigMsg()); saveConfig(); });
   $("in-vol").addEventListener("input", () => {
     CONFIG.sound.volume = +$("in-vol").value;
     $("out-vol").textContent = Math.round(CONFIG.sound.volume * 100 / 1.6) + "%";
-    audioSet(soundConfigMsg());
+    audioSet(soundConfigMsg()); saveConfig();
   });
   $("in-clutch").addEventListener("input", () => {
     CONFIG.engine.clutchOutSec = +$("in-clutch").value;
     $("out-clutch").textContent = CONFIG.engine.clutchOutSec.toFixed(2) + " s";
+    saveConfig();
   });
 
-  document.querySelectorAll(".presets button").forEach(btn => {
-    btn.addEventListener("click", () => { Object.assign(CONFIG.inputs, PRESETS[btn.dataset.preset]); rebuildModel(); });
+  $("in-body").addEventListener("change", () => { CONFIG.chassis.body = $("in-body").value; rebuildModel(); });
+  $("in-tire").addEventListener("change", () => { CONFIG.chassis.tire = $("in-tire").value.trim(); rebuildModel(); });
+  $("in-gearcount").addEventListener("change", () => { CONFIG.chassis.gearCount = +$("in-gearcount").value; rebuildModel(); });
+  $("in-gears").addEventListener("change", () => { CONFIG.chassis.gearRatios = $("in-gears").value.trim(); rebuildModel(); });
+
+  document.querySelectorAll(".presets button[data-preset]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const pr = PRESETS[btn.dataset.preset];
+      Object.assign(CONFIG.inputs, pr, { firing: pr.firing.slice() });
+      if (pr.cylinders !== 4 && CONFIG.sound.collector === "pairs") CONFIG.sound.collector = "merged";
+      PANEL_WARN = [];
+      soundOnly();
+      rebuildModel();
+    });
+  });
+  $("btn-copy").addEventListener("click", () => {
+    const txt = JSON.stringify(exportConfig(), null, 1);
+    const fallback = () => window.prompt("Copy this config:", txt);
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(() => flashButton($("btn-copy"), "Copied"), fallback);
+    else fallback();
+  });
+  $("btn-paste").addEventListener("click", () => {
+    const txt = window.prompt("Paste a config (JSON from Copy config):", "");
+    if (!txt) return;
+    let ok = false;
+    try { ok = importConfig(JSON.parse(txt)); } catch (e) { ok = false; }
+    PANEL_WARN = ok ? [] : ["That paste wasn't a valid config."];
+    soundOnly();
+    rebuildModel();
+  });
+  $("btn-defaults").addEventListener("click", () => {
+    importConfig(JSON.parse(JSON.stringify(DEFAULTS)));
+    PANEL_WARN = [];
+    soundOnly();
+    rebuildModel();
   });
   $("btn-mute").addEventListener("click", () => { ensureAudio(); toggleMute(); });
+}
+
+function flashButton(btn, text) {
+  const old = btn.textContent;
+  btn.textContent = text;
+  setTimeout(() => { btn.textContent = old; }, 1200);
 }
 
 function toggleTweakPanel() { document.getElementById("tweak").classList.toggle("open"); }
@@ -1540,6 +1978,7 @@ window.addEventListener("keydown", e => {
   const k = keyName(e);
   ensureAudio();
   const tag = e.target && e.target.tagName;
+  if (tag === "INPUT" && (e.target.type === "text" || e.target.type === "number")) return;   // typing a spec, not riding
   if ((tag === "INPUT" || tag === "SELECT" || tag === "BUTTON") && k !== "t") return;
   if (!WATCHED.has(k)) return;
   e.preventDefault();
@@ -1580,6 +2019,7 @@ if (window.matchMedia) {
   if (mq.addEventListener) mq.addEventListener("change", resize);
 }
 wireTweakPanel();
+loadSavedConfig();
 rebuildModel();
 resize();
 canvas.focus();
