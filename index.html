@@ -83,6 +83,95 @@
   .tweak canvas#curve { width: 100%; height: 110px; margin-top: 10px; background: #0E0F10; border-radius: 4px; }
   .hint { position: fixed; left: 12px; bottom: calc(10px + env(safe-area-inset-bottom, 0px));
     color: rgba(216,216,213,0.45); font: 11px ui-sans-serif, Arial, sans-serif; letter-spacing: 0.02em; }
+
+  /* ---------- touch layout: control deck + rotate prompt ---------- */
+  .deck, .rotate, .tweak .close { display: none; }
+  body.touch { flex-direction: column; justify-content: flex-start; }
+  body.touch #pods { flex: 0 0 auto; margin-top: calc(4px + env(safe-area-inset-top, 0px)); }
+  body.touch .hint { display: none; }
+  body.touch .tweak .close { display: block; position: sticky; top: 0; float: right; flex: none;
+    margin: -6px -6px 0 8px; padding: 6px 12px; font-size: 16px; line-height: 1; z-index: 1; }
+
+  body.touch .deck {
+    display: flex; flex-direction: column; gap: 8px;
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 4;
+    padding: 8px max(12px, env(safe-area-inset-right, 0px)) calc(8px + env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px));
+    background:
+      linear-gradient(180deg, rgba(0,0,0,0) 0, rgba(0,0,0,0.55) 100%),
+      repeating-linear-gradient(45deg, #151617 0 3px, #1c1d1f 3px 6px),
+      repeating-linear-gradient(-45deg, rgba(255,255,255,0.025) 0 3px, rgba(0,0,0,0) 3px 6px);
+    border-top: 2px solid #C0392B;
+    box-shadow: 0 -8px 24px rgba(0,0,0,0.6);
+    font: italic 700 12px/1 'Arial Narrow', 'Roboto Condensed', ui-sans-serif, Arial, sans-serif;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+  }
+  .deck .ride { display: flex; justify-content: space-between; align-items: stretch; gap: 10px; }
+  .deck .grp { display: flex; gap: 8px; align-items: stretch; }
+  .deck .util { display: flex; justify-content: center; gap: 8px; }
+
+  .deck button {
+    touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+    font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer;
+    color: #E8E6DF; border-radius: 10px; border: 1px solid #0a0a0a;
+    background: linear-gradient(180deg, #4a4c50 0%, #2a2b2e 48%, #1d1e20 52%, #2c2d30 100%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.22), inset 0 -2px 0 rgba(0,0,0,0.5), 0 3px 0 #050505, 0 4px 8px rgba(0,0,0,0.5);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    transition: transform 0.04s, box-shadow 0.04s, filter 0.04s;
+  }
+  .deck button .k { font-size: 20px; font-style: normal; font-weight: 800; letter-spacing: 0; }
+  .deck button .l { font-size: 10px; color: #A9A8A2; }
+  .deck button.down {
+    transform: translateY(3px);
+    box-shadow: inset 0 2px 6px rgba(0,0,0,0.7), 0 0 0 #050505, 0 0 12px rgba(192,57,43,0.55);
+    filter: brightness(1.15);
+  }
+  .deck button:focus-visible { outline: 2px solid #E0A040; outline-offset: 2px; }
+
+  .deck .ride button { min-width: 64px; height: 64px; padding: 0 10px; }
+  .deck .gear button { min-width: 72px; }
+  .deck .gear button .k { color: #F2C14E; }
+  .deck .gear button.down .k { color: #fff; text-shadow: 0 0 8px #F2C14E; }
+  .deck .clutch { min-width: 92px !important;
+    background: linear-gradient(180deg, #5a5d62 0%, #34363a 50%, #25272a 100%); border-radius: 32px 10px 10px 32px; }
+  .deck .clutch.down { box-shadow: inset 0 2px 6px rgba(0,0,0,0.7), 0 0 12px rgba(242,193,78,0.5); }
+  .deck .throttle {
+    min-width: 150px !important; border-radius: 10px 32px 32px 10px;
+    background:
+      repeating-linear-gradient(90deg, rgba(0,0,0,0.35) 0 2px, rgba(0,0,0,0) 2px 7px),
+      linear-gradient(180deg, #d0463a 0%, #9c2a20 50%, #7a1f17 100%);
+  }
+  .deck .throttle .l, .deck .part .l { color: #F6D5D0; }
+  .deck .part {
+    min-width: 70px !important;
+    background:
+      repeating-linear-gradient(90deg, rgba(0,0,0,0.3) 0 2px, rgba(0,0,0,0) 2px 7px),
+      linear-gradient(180deg, #7d3a33 0%, #56231d 100%);
+  }
+  .deck .throttle.down, .deck .part.down { box-shadow: inset 0 2px 8px rgba(0,0,0,0.7), 0 0 18px rgba(255,80,60,0.75); }
+
+  .deck .util button { height: 38px; min-width: 84px; padding: 0 12px; flex-direction: row; gap: 7px; border-radius: 19px; }
+  .deck .util button .k { font-size: 13px; width: 20px; height: 20px; line-height: 20px; border-radius: 50%;
+    background: #0d0d0e; color: #F2C14E; box-shadow: inset 0 0 0 1px #3a3a3a; }
+  .deck .util button .l { font-size: 11px; color: #D8D6CF; }
+  .deck .util button.on { border-color: #E0A040; box-shadow: inset 0 0 0 1px #E0A040, 0 3px 0 #050505, 0 0 10px rgba(224,160,64,0.35); }
+  .deck .util button.on .k { background: #E0A040; color: #111; }
+  .deck .start { background: radial-gradient(circle at 50% 35%, #e0544a 0%, #a42a20 60%, #6d1812 100%) !important; }
+  .deck .start .k { background: #2a0907 !important; color: #fff !important; }
+  .deck .start .l { color: #fff !important; }
+
+  .rotate {
+    position: fixed; inset: 0; z-index: 20; background: #0b0b0c;
+    flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+    color: #E8E6DF; text-align: center; padding: 24px;
+    font: italic 700 15px/1.4 'Arial Narrow', 'Roboto Condensed', ui-sans-serif, Arial, sans-serif;
+    text-transform: uppercase; letter-spacing: 0.1em;
+  }
+  .rotate small { font-style: normal; font-weight: 400; text-transform: none; letter-spacing: 0.02em; color: #8A8A86; font-size: 13px; }
+  .rotate svg { width: 96px; height: 96px; animation: tilt 2.2s ease-in-out infinite; }
+  @keyframes tilt { 0%, 25% { transform: rotate(0); } 55%, 85% { transform: rotate(-90deg); } 100% { transform: rotate(0); } }
+  @media (prefers-reduced-motion: reduce) { .rotate svg { animation: none; } }
+  @media (orientation: portrait) and (pointer: coarse) { body.touch .rotate { display: flex; } }
 </style>
 </head>
 <body>
@@ -90,7 +179,36 @@
 
 <div class="hint">W throttle &nbsp;·&nbsp; Q part throttle &nbsp;·&nbsp; Shift clutch &nbsp;·&nbsp; N/M gears &nbsp;·&nbsp; E start &nbsp;·&nbsp; P presets &nbsp;·&nbsp; T tweak &nbsp;·&nbsp; A mute</div>
 
+<div class="deck" id="deck" aria-label="Riding controls">
+  <div class="ride">
+    <div class="grp gear">
+      <button class="clutch" data-key="shift" aria-label="Clutch (hold)"><span class="k">⟵</span><span class="l">Clutch</span></button>
+      <button data-key="m" aria-label="Downshift"><span class="k">▼ M</span><span class="l">Down</span></button>
+      <button data-key="n" aria-label="Upshift"><span class="k">▲ N</span><span class="l">Up</span></button>
+    </div>
+    <div class="grp">
+      <button class="part" data-key="q" aria-label="Part throttle (hold)"><span class="k">Q</span><span class="l">Part</span></button>
+      <button class="throttle" data-key="w" aria-label="Throttle (hold)"><span class="k">W</span><span class="l">Throttle</span></button>
+    </div>
+  </div>
+  <div class="util">
+    <button data-key="p" aria-label="Presets"><span class="k">P</span><span class="l">Presets</span></button>
+    <button data-key="t" aria-label="Tuner"><span class="k">T</span><span class="l">Tune</span></button>
+    <button data-key="a" aria-label="Mute"><span class="k">A</span><span class="l">Mute</span></button>
+    <button class="start" data-key="e" aria-label="Start engine"><span class="k">E</span><span class="l">Start</span></button>
+  </div>
+</div>
+
+<div class="rotate" role="alert">
+  <svg viewBox="0 0 64 64" fill="none" stroke="#E0A040" stroke-width="3" aria-hidden="true">
+    <rect x="20" y="6" width="24" height="52" rx="4"/><line x1="29" y1="51" x2="35" y2="51"/>
+  </svg>
+  <div>Rotate to landscape</div>
+  <small>The pods and controls need the full width of your screen.</small>
+</div>
+
 <div class="tweak left" id="presets-panel">
+  <button class="close" data-close="p" aria-label="Close presets">✕</button>
   <h2>Presets</h2>
   <input type="text" id="preset-filter" placeholder="Filter: triple, 650, ducati, single..." spellcheck="false" autocomplete="off" aria-label="Filter presets">
   <div class="note">Published specs: bore x stroke, compression, firing layout, redline, torque and power peaks, weight, tyre, gearbox. VE is calibrated on load so peak torque matches the brochure; exhaust lengths are estimates. Pick a bike, then press T to see or change anything.</div>
@@ -98,6 +216,7 @@
 </div>
 
 <div class="tweak" id="tweak">
+  <button class="close" data-close="t" aria-label="Close tuner">✕</button>
   <h2>Engine Tuner</h2>
   <div class="based" id="out-based"></div>
   <div class="presets">
@@ -1380,6 +1499,7 @@ function toggleMute() {
   }
   const btn = document.getElementById("btn-mute");
   if (btn) { btn.textContent = AUDIO.muted ? "Unmute" : "Mute"; btn.classList.toggle("active", AUDIO.muted); }
+  syncDeck();
 }
 
 // a hidden tab stops rAF (and so the physics); stop the audio with it instead of droning
@@ -1406,7 +1526,8 @@ const sctx = staticLayer.getContext("2d");
 
 function resize() {
   dpr = Math.min(window.devicePixelRatio || 1, 3);
-  const fit = Math.min(1, (window.innerWidth - 16) / LOGICAL_W, (window.innerHeight - 16) / LOGICAL_H);
+  const deck = document.body.classList.contains("touch") ? document.getElementById("deck").offsetHeight : 0;
+  const fit = Math.min(1, (window.innerWidth - 16) / LOGICAL_W, (window.innerHeight - 16 - deck) / LOGICAL_H);
   canvas.width  = Math.round(LOGICAL_W * dpr);
   canvas.height = Math.round(LOGICAL_H * dpr);
   canvas.style.width  = (LOGICAL_W * fit) + "px";
@@ -2173,17 +2294,10 @@ function applyThrottleKeys() {
   state.thrTarget = held.has("w") ? 1 : held.has("q") ? 0.3 : 0;
 }
 
-window.addEventListener("keydown", e => {
-  const k = keyName(e);
-  ensureAudio();
-  const tag = e.target && e.target.tagName;
-  if (tag === "INPUT" && (e.target.type === "text" || e.target.type === "number")) return;   // typing a spec, not riding
-  if ((tag === "INPUT" || tag === "SELECT" || tag === "BUTTON") && k !== "t" && k !== "p") return;
-  if (!WATCHED.has(k)) return;
-  e.preventDefault();
-  if (e.repeat || held.has(k)) return;
+// one press/release path shared by the keyboard and the touch deck
+function pressControl(k) {
+  if (held.has(k)) return;
   held.add(k);
-
   if (k === "w" || k === "q") applyThrottleKeys();
   else if (k === "shift") state.clutchKey = true;
   else if (k === "n") upshift();
@@ -2193,21 +2307,107 @@ window.addEventListener("keydown", e => {
   else if (k === "t") toggleTweakPanel();
   else if (k === "p") togglePresetPanel();
   else if (k === "a") toggleMute();
+  syncDeck();
+}
+
+function releaseControl(k) {
+  held.delete(k);
+  if (k === "w" || k === "q") applyThrottleKeys();
+  else if (k === "shift") state.clutchKey = false;
+  syncDeck();
+}
+
+window.addEventListener("keydown", e => {
+  const k = keyName(e);
+  ensureAudio();
+  const tag = e.target && e.target.tagName;
+  if (tag === "INPUT" && (e.target.type === "text" || e.target.type === "number")) return;   // typing a spec, not riding
+  if ((tag === "INPUT" || tag === "SELECT" || tag === "BUTTON") && k !== "t" && k !== "p") return;
+  if (!WATCHED.has(k)) return;
+  e.preventDefault();
+  if (e.repeat) return;
+  pressControl(k);
 });
 
 window.addEventListener("keyup", e => {
   const k = keyName(e);
   if (!WATCHED.has(k)) return;
-  held.delete(k);                                 // always release, even if focus moved into the panel
-  if (k === "w" || k === "q") applyThrottleKeys();
-  else if (k === "shift") state.clutchKey = false;
+  releaseControl(k);                              // always release, even if focus moved into the panel
 });
 
 window.addEventListener("blur", () => {           // never leave throttle stuck open
   held.clear();
+  deckPointers.clear();
   state.thrTarget = 0;
   state.clutchKey = false;
+  syncDeck();
 });
+
+/* ------------- touch deck: every button tracks its own pointers ------------- */
+const deckButtons = [...document.querySelectorAll("#deck button[data-key]")];
+const deckPointers = new Map();                   // pointerId -> key, so W + N + clutch can all be held at once
+
+function syncDeck() {
+  for (const b of deckButtons) {
+    const k = b.dataset.key;
+    b.classList.toggle("down", held.has(k));
+    if (k === "p") b.classList.toggle("on", document.getElementById("presets-panel").classList.contains("open"));
+    if (k === "t") b.classList.toggle("on", document.getElementById("tweak").classList.contains("open"));
+    if (k === "a") { b.classList.toggle("on", AUDIO.muted); b.querySelector(".l").textContent = AUDIO.muted ? "Muted" : "Mute"; }
+  }
+}
+
+function deckRelease(id) {
+  const k = deckPointers.get(id);
+  if (k === undefined) return;
+  deckPointers.delete(id);
+  for (const other of deckPointers.values()) if (other === k) return;   // another finger still on it
+  releaseControl(k);
+}
+
+for (const b of deckButtons) {
+  const k = b.dataset.key;
+  b.addEventListener("pointerdown", e => {
+    e.preventDefault();
+    ensureAudio();
+    try { b.setPointerCapture(e.pointerId); } catch (err) {}
+    deckPointers.set(e.pointerId, k);
+    pressControl(k);
+  });
+  for (const ev of ["pointerup", "pointercancel", "lostpointercapture"]) b.addEventListener(ev, e => deckRelease(e.pointerId));
+  b.addEventListener("contextmenu", e => e.preventDefault());
+  b.addEventListener("keydown", e => {            // keyboard activation of a focused deck button
+    if (e.key !== "Enter" && e.key !== " ") return;
+    e.preventDefault(); e.stopPropagation();
+    if (!e.repeat) pressControl(k);
+  });
+  b.addEventListener("keyup", e => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    e.stopPropagation();
+    releaseControl(k);
+  });
+}
+document.getElementById("deck").addEventListener("touchstart", e => e.preventDefault(), { passive: false });   // no double-tap zoom / scroll
+document.getElementById("deck").addEventListener("touchend", () => ensureAudio());                             // iOS unlocks audio on touchend
+
+for (const b of document.querySelectorAll(".tweak .close")) {
+  b.addEventListener("click", () => {
+    const panel = b.closest(".tweak");
+    panel.classList.remove("open");
+    syncDeck();
+  });
+}
+
+// touch layout: coarse pointer (phones/tablets) or a narrow window
+const touchMQ = window.matchMedia ? window.matchMedia("(pointer: coarse), (max-width: 820px)") : null;
+function applyTouchLayout() {
+  document.body.classList.toggle("touch", !!(touchMQ && touchMQ.matches));
+  resize();
+}
+if (touchMQ) {
+  if (touchMQ.addEventListener) touchMQ.addEventListener("change", applyTouchLayout);
+  else if (touchMQ.addListener) touchMQ.addListener(applyTouchLayout);
+}
 
 canvas.addEventListener("pointerdown", () => { canvas.focus(); ensureAudio(); });
 window.addEventListener("load", () => { try { window.focus(); canvas.focus(); } catch (e) {} });
@@ -2222,7 +2422,8 @@ wireTweakPanel();
 loadSavedConfig();
 wirePresetPanel();
 rebuildModel();
-resize();
+applyTouchLayout();
+syncDeck();
 canvas.focus();
 requestAnimationFrame(frame);
 
